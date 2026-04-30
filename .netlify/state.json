@@ -1,3 +1,22 @@
 {
-  "siteId": ""
+	"siteId": "",
+	"dbConnectionString": "postgres://localhost:32885/postgres",
+	"geolocation": {
+		"data": {
+			"city": "Columbus",
+			"country": {
+				"code": "US",
+				"name": "United States"
+			},
+			"subdivision": {
+				"code": "OH",
+				"name": "Ohio"
+			},
+			"timezone": "America/New_York",
+			"latitude": 39.9587,
+			"longitude": -82.9987,
+			"postalCode": "43215"
+		},
+		"timestamp": 1777536990820
+	}
 }
