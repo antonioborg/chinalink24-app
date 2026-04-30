@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 
 const roles = ['Admin', 'Staff', 'Warehouse staff', 'Customs staff', 'Client'];
+const useMockAuth = true;
 
 // Backend integration point: replace these session-scoped mocks with API calls
 // backed by Netlify Functions and a server-side PostgreSQL connection.
@@ -48,6 +49,12 @@ const demoUsers = [
   { id: 3, name: 'Lin Wei', email: 'warehouse@chinalink24.com', role: 'Warehouse staff', active: true, code: 'WH' },
   { id: 4, name: 'Amara Okafor', email: 'customs@chinalink24.com', role: 'Customs staff', active: true, code: 'CUS' },
   { id: 5, name: 'TechNova Imports', email: 'client@technova.example', role: 'Client', active: true, code: 'TECH' },
+];
+
+const initialCustomers = [
+  { id: 'CUS-001', name: 'TechNova Imports', code: 'TECH', destination: 'Ghana', contact: 'Adjoa Mensah', status: 'Active' },
+  { id: 'CUS-002', name: 'Blue Harbor Retail', code: 'BHR', destination: 'Nigeria', contact: 'Chinedu Okoro', status: 'Active' },
+  { id: 'CUS-003', name: 'Northline Parts', code: 'NLP', destination: 'Kenya', contact: 'Grace Wanjiku', status: 'Customs review' },
 ];
 
 const initialShipments = [
@@ -118,6 +125,31 @@ const initialContainments = [
   },
 ];
 
+const initialShippingContainers = [
+  { id: 'CMAU-482913-7', route: 'Shenzhen to Tema', destination: 'Ghana', status: 'Ocean freight', containments: 6, eta: '2026-05-18' },
+  { id: 'MSCU-771204-3', route: 'Ningbo to Lagos', destination: 'Nigeria', status: 'Loading', containments: 4, eta: '2026-05-22' },
+  { id: 'OOLU-319872-6', route: 'Shanghai to Mombasa', destination: 'Kenya', status: 'Port arrival', containments: 3, eta: '2026-05-09' },
+];
+
+const initialDocuments = [
+  { id: 'DOC-2041', title: 'Commercial invoice', owner: 'TechNova Imports', shipment: 'SHP-1048', status: 'Uploaded' },
+  { id: 'DOC-2042', title: 'Payment proof', owner: 'Blue Harbor Retail', shipment: 'SHP-1049', status: 'Under review' },
+  { id: 'DOC-2043', title: 'Packing list', owner: 'Northline Parts', shipment: 'SHP-1050', status: 'Requested' },
+];
+
+const initialPayments = [
+  { id: 'PAY-8801', customer: 'TechNova Imports', shipment: 'SHP-1048', amount: '$420.00', status: 'Awaiting validation' },
+  { id: 'PAY-8802', customer: 'Blue Harbor Retail', shipment: 'SHP-1049', amount: '$1,140.00', status: 'Cleared for packing' },
+  { id: 'PAY-8803', customer: 'Northline Parts', shipment: 'SHP-1050', amount: '$360.00', status: 'Proof uploaded' },
+];
+
+const initialTrackingEvents = [
+  { id: 'EVT-5101', tracking: 'YT923847510CN', shipment: 'SHP-1048', status: 'Received', location: 'Guangzhou warehouse' },
+  { id: 'EVT-5102', tracking: 'SF109384720CN', shipment: 'SHP-1048', status: 'Ready for packing', location: 'Shelf B2' },
+  { id: 'EVT-5103', tracking: 'JD394857201CN', shipment: 'SHP-1049', status: 'Packed into containment', location: 'CL24-BHR-0001' },
+  { id: 'EVT-5104', tracking: 'YT302948571CN', shipment: 'SHP-1050', status: 'In customs clearance', location: 'Mombasa port' },
+];
+
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: roles },
   { id: 'customers', label: 'Customers', icon: Users, roles: ['Admin', 'Staff'] },
@@ -147,8 +179,18 @@ const statusTone = {
   'Parcels in transit to warehouse': 'amber',
   'Waiting for parcel tracking numbers': 'neutral',
   'Customs cleared': 'green',
+  Active: 'green',
   Open: 'amber',
   Ready: 'blue',
+  'Customs review': 'red',
+  'Under review': 'amber',
+  Requested: 'neutral',
+  'Awaiting validation': 'amber',
+  'Cleared for packing': 'green',
+  'Proof uploaded': 'blue',
+  'Ocean freight': 'blue',
+  Loading: 'amber',
+  'Port arrival': 'red',
 };
 
 function App() {
@@ -163,11 +205,22 @@ function App() {
   const [shipments, setShipments] = useState(initialShipments);
   const [parcels, setParcels] = useState(initialParcels);
   const [containments, setContainments] = useState(initialContainments);
+  const [customers] = useState(initialCustomers);
+  const [shippingContainers] = useState(initialShippingContainers);
+  const [documents] = useState(initialDocuments);
+  const [payments] = useState(initialPayments);
+  const [trackingEvents] = useState(initialTrackingEvents);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const scoped = useMemo(() => scopeRecords(currentUser, shipments, parcels, containments), [currentUser, shipments, parcels, containments]);
 
   useEffect(() => {
+    if (useMockAuth) {
+      setAuthSettings({ disableSignup: false });
+      setAuthLoading(false);
+      return undefined;
+    }
+
     let isMounted = true;
 
     async function loadIdentitySession() {
@@ -238,6 +291,18 @@ function App() {
 
   async function handleLogin(credentials) {
     setAuthMessage('');
+    if (useMockAuth) {
+      const user = users.find((item) => item.active && item.email.toLowerCase() === credentials.email.toLowerCase());
+      if (!user) {
+        setAuthMessage('Choose one of the available mock accounts.');
+        return;
+      }
+      setCurrentUser(user);
+      setScreen('app');
+      setActiveSection('dashboard');
+      return;
+    }
+
     try {
       const identityUser = await identityLogin(credentials.email, credentials.password);
       enterAuthenticatedApp(identityUser);
@@ -262,6 +327,14 @@ function App() {
       code: code || 'NEW',
     };
     setAuthMessage('');
+    if (useMockAuth) {
+      setUsers((existing) => [...existing.filter((user) => user.email !== newUser.email), newUser]);
+      setCurrentUser(newUser);
+      setScreen('app');
+      setActiveSection('shipments');
+      return;
+    }
+
     try {
       const identityUser = await identitySignup(profile.email, profile.password, {
         full_name: profile.company,
@@ -284,6 +357,11 @@ function App() {
 
   async function handlePasswordRecovery(email) {
     setAuthMessage('');
+    if (useMockAuth) {
+      setAuthMessage(`Password recovery is disabled for the mock account ${email}.`);
+      return;
+    }
+
     try {
       await requestPasswordRecovery(email);
       setAuthMessage('Password recovery email sent. Use the link in that email to set a new password.');
@@ -316,6 +394,13 @@ function App() {
 
   async function handleLogout() {
     setAuthMessage('');
+    if (useMockAuth) {
+      setCurrentUser(null);
+      setScreen('login');
+      setActiveSection('dashboard');
+      return;
+    }
+
     try {
       await identityLogout();
     } catch (error) {
@@ -590,9 +675,14 @@ function App() {
             section={activeSection}
             user={currentUser}
             users={users}
+            customers={customers}
             shipments={scoped.shipments}
             parcels={scoped.parcels}
             containments={scoped.containments}
+            shippingContainers={shippingContainers}
+            documents={documents}
+            payments={payments}
+            trackingEvents={trackingEvents}
             onCreateShipment={createShipment}
             onAddParcelToShipment={addParcelToShipment}
             onAddUser={addUser}
@@ -611,7 +701,7 @@ function App() {
 }
 
 function LoginView({ users, message, registrationDisabled, onLogin, onRegister, onPasswordRecovery }) {
-  const [form, setForm] = useState({ email: users[0].email, password: '' });
+  const [form, setForm] = useState({ email: users[0].email, password: 'demo1234' });
   const [showRecovery, setShowRecovery] = useState(false);
   const activeUsers = users.filter((user) => user.active);
   const canSubmit = form.email && form.password;
@@ -775,13 +865,13 @@ function SectionRouter(props) {
   if (section === 'customers') return <Customers {...props} />;
   if (section === 'customs') return <Customs {...props} />;
   if (section === 'containers') return <Containers {...props} />;
-  if (section === 'documents') return <SimpleSection title="Documents" icon={FileText} lines={['Invoice placeholders', 'Payment proof placeholders', 'Document review queue']} />;
-  if (section === 'payments') return <SimpleSection title="Payments" icon={CreditCard} lines={['Proof uploaded', 'Awaiting validation', 'Cleared for packing']} />;
+  if (section === 'documents') return <Documents {...props} />;
+  if (section === 'payments') return <Payments {...props} />;
   if (section === 'reports') return <SimpleSection title="Reports" icon={BarChart3} lines={['Parcel aging', 'Containment utilization', 'Customs clearance time']} />;
   return <SimpleSection title="Settings" icon={Settings} lines={['Default containment size: 60 x 50 x 90 cm', 'Role permissions', 'Notification preferences']} />;
 }
 
-function Dashboard({ user, shipments, parcels, containments, onOpenContainment }) {
+function Dashboard({ user, shipments, parcels, containments, trackingEvents, onOpenContainment }) {
   return (
     <div className="section-stack">
       <div className="hero-band">
@@ -807,8 +897,8 @@ function Dashboard({ user, shipments, parcels, containments, onOpenContainment }
           ))}
         </Panel>
         <Panel title="Recent Parcel Events">
-          {parcels.map((parcel) => (
-            <RecordRow key={parcel.tracking} title={parcel.tracking} meta={parcel.shipment} status={parcel.status} />
+          {trackingEvents.map((event) => (
+            <RecordRow key={event.id} title={event.tracking} meta={`${event.shipment} - ${event.location}`} status={event.status} />
           ))}
         </Panel>
       </div>
@@ -1056,12 +1146,11 @@ function UsersPage({ users, onAddUser, setUsers }) {
   );
 }
 
-function Customers({ shipments }) {
-  const customers = [...new Map(shipments.map((shipment) => [shipment.customer, shipment])).values()];
+function Customers({ customers }) {
   return (
     <Panel title="Customers">
       {customers.map((customer) => (
-        <RecordRow key={customer.customer} title={customer.customer} meta={`Client code ${customer.clientCode} - ${customer.destination}`} status={customer.status} />
+        <RecordRow key={customer.id} title={customer.name} meta={`${customer.code} - ${customer.destination} - ${customer.contact}`} status={customer.status} />
       ))}
     </Panel>
   );
@@ -1087,11 +1176,34 @@ function Customs({ shipments, onUpdateShipmentCustoms }) {
   );
 }
 
-function Containers({ containments }) {
+function Containers({ containments, shippingContainers }) {
   return (
     <Panel title="Shipping Containers">
-      {containments.map((box) => (
+      {shippingContainers.map((container) => (
+        <RecordRow key={container.id} title={container.id} meta={`${container.route} - ${container.containments} containments - ETA ${container.eta}`} status={container.status} />
+      ))}
+      {containments.filter((box) => box.container !== 'Pending').map((box) => (
         <RecordRow key={box.number} title={box.container} meta={`${box.number} - ${box.destination}`} status={box.status} />
+      ))}
+    </Panel>
+  );
+}
+
+function Documents({ documents }) {
+  return (
+    <Panel title="Documents">
+      {documents.map((document) => (
+        <RecordRow key={document.id} title={document.title} meta={`${document.owner} - ${document.shipment}`} status={document.status} />
+      ))}
+    </Panel>
+  );
+}
+
+function Payments({ payments }) {
+  return (
+    <Panel title="Payments">
+      {payments.map((payment) => (
+        <RecordRow key={payment.id} title={`${payment.customer} - ${payment.amount}`} meta={payment.shipment} status={payment.status} />
       ))}
     </Panel>
   );
