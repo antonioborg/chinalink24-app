@@ -188,6 +188,7 @@ textarea:focus {
   color: var(--blue-900);
   padding: 0 14px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .text-action {
@@ -463,6 +464,37 @@ textarea:focus {
   gap: 16px;
 }
 
+.shipment-add-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.inline-add {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) auto;
+  gap: 12px;
+  align-items: center;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.inline-add strong,
+.label-head strong {
+  color: var(--blue-950);
+}
+
+.inline-add span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-top: 3px;
+}
+
 .span-2 {
   grid-column: 1 / -1;
 }
@@ -515,6 +547,15 @@ th {
   padding: 16px;
   display: grid;
   gap: 14px;
+}
+
+.parcel-actions,
+.label-actions,
+.customs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 dl {
@@ -581,6 +622,27 @@ dd {
   gap: 8px;
 }
 
+.compact-select {
+  width: min(220px, 100%);
+  min-height: 42px;
+}
+
+.customs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+}
+
+.customs-row:first-of-type {
+  border-top: 0;
+}
+
+.customs-row .record-row {
+  border-top: 0;
+}
+
 .mobile-only {
   display: none;
 }
@@ -625,8 +687,15 @@ dd {
   .metrics-grid,
   .dashboard-grid,
   .card-grid,
-  .containment-grid {
+  .containment-grid,
+  .inline-add,
+  .customs-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .inline-add button,
+  .customs-actions {
+    grid-column: 1 / -1;
   }
 }
 
@@ -641,7 +710,9 @@ dd {
   .metrics-grid,
   .dashboard-grid,
   .card-grid,
-  .containment-grid {
+  .containment-grid,
+  .inline-add,
+  .customs-row {
     grid-template-columns: 1fr;
   }
 
@@ -678,5 +749,18 @@ dd {
 
   .panel {
     padding: 16px;
+  }
+
+  .secondary-action,
+  .primary-action,
+  .compact-select {
+    width: 100%;
+  }
+
+  .parcel-actions,
+  .label-actions,
+  .customs-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

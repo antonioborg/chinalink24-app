@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  Lock,
   LogOut,
   Menu,
   PackageCheck,
@@ -18,6 +19,7 @@ import {
   Settings,
   ShieldCheck,
   Truck,
+  UploadCloud,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -71,10 +73,10 @@ const initialShipments = [
 ];
 
 const initialParcels = [
-  { tracking: 'YT923847510CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'Received', weight: '7.4 kg', invoice: true, payment: false },
-  { tracking: 'SF109384720CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'Ready for packing', weight: '4.8 kg', invoice: true, payment: true },
-  { tracking: 'ZTO493827104CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'In transit to warehouse', weight: 'Pending', invoice: false, payment: false },
-  { tracking: 'JD394857201CN', shipment: 'SHP-1049', client: 'Blue Harbor Retail', status: 'Packed into containment', weight: '11.2 kg', invoice: true, payment: true },
+  { tracking: 'YT923847510CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'Received', weight: '7.4 kg', dimensions: '42 x 34 x 26 cm', invoice: true, payment: false, notes: 'Outer carton intact' },
+  { tracking: 'SF109384720CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'Ready for packing', weight: '4.8 kg', dimensions: '36 x 20 x 18 cm', invoice: true, payment: true, notes: 'Ready shelf B2' },
+  { tracking: 'ZTO493827104CN', shipment: 'SHP-1048', client: 'TechNova Imports', status: 'In transit to warehouse', weight: 'Pending', dimensions: 'Pending', invoice: false, payment: false, notes: 'Awaiting warehouse scan' },
+  { tracking: 'JD394857201CN', shipment: 'SHP-1049', client: 'Blue Harbor Retail', status: 'Packed into containment', weight: '11.2 kg', dimensions: '54 x 38 x 32 cm', invoice: true, payment: true, notes: 'Packed in CL24-BHR-0001' },
 ];
 
 const initialContainments = [
@@ -128,6 +130,11 @@ const statusTone = {
   'Partially received': 'amber',
   'Loaded into shipping container': 'blue',
   'In customs clearance': 'red',
+  'Parcels in transit to warehouse': 'amber',
+  'Waiting for parcel tracking numbers': 'neutral',
+  'Customs cleared': 'green',
+  Open: 'amber',
+  Ready: 'blue',
 };
 
 function App() {
@@ -173,19 +180,71 @@ function App() {
   }
 
   function createShipment(form) {
+    const trackingNumbers = form.parcels.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+    const nextShipmentNumber = Math.max(...shipments.map((shipment) => Number(shipment.id.replace('SHP-', '')))) + 1;
+    const id = `SHP-${nextShipmentNumber}`;
     const shipment = {
-      id: `SHP-${1050 + shipments.length}`,
+      id,
       customer: currentUser.name,
       clientCode: currentUser.code,
-      status: form.parcels ? 'Parcels in transit to warehouse' : 'Waiting for parcel tracking numbers',
+      status: trackingNumbers.length ? 'Parcels in transit to warehouse' : 'Waiting for parcel tracking numbers',
       expected: Number(form.expected || 1),
-      parcels: form.parcels.split(/\n|,/).map((item) => item.trim()).filter(Boolean),
+      parcels: trackingNumbers,
       destination: form.destination,
       customs: 'Not submitted',
       delivery: 'Request created',
     };
     setShipments((existing) => [shipment, ...existing]);
+    if (trackingNumbers.length) {
+      setParcels((existing) => [
+        ...trackingNumbers.map((tracking) => ({
+          tracking,
+          shipment: id,
+          client: currentUser.name,
+          status: 'Tracking number submitted',
+          weight: 'Pending',
+          dimensions: 'Pending',
+          invoice: false,
+          payment: false,
+          notes: 'Client submitted tracking number',
+        })),
+        ...existing,
+      ]);
+    }
     setActiveSection('shipments');
+  }
+
+  function addParcelToShipment(shipmentId, trackingNumber) {
+    const tracking = trackingNumber.trim().toUpperCase();
+    if (!tracking || parcels.some((parcel) => parcel.tracking === tracking)) return;
+    const shipment = shipments.find((item) => item.id === shipmentId);
+    if (!shipment) return;
+
+    setShipments((existing) =>
+      existing.map((item) =>
+        item.id === shipmentId
+          ? {
+              ...item,
+              parcels: [...item.parcels, tracking],
+              status: 'Parcels in transit to warehouse',
+            }
+          : item,
+      ),
+    );
+    setParcels((existing) => [
+      {
+        tracking,
+        shipment: shipmentId,
+        client: shipment.customer,
+        status: 'Tracking number submitted',
+        weight: 'Pending',
+        dimensions: 'Pending',
+        invoice: false,
+        payment: false,
+        notes: 'Added before packing was closed',
+      },
+      ...existing,
+    ]);
   }
 
   function addUser(form) {
@@ -205,7 +264,29 @@ function App() {
   function receiveParcel(tracking) {
     setParcels((existing) =>
       existing.map((parcel) =>
-        parcel.tracking === tracking ? { ...parcel, status: 'Received', weight: parcel.weight === 'Pending' ? '3.6 kg' : parcel.weight } : parcel,
+        parcel.tracking === tracking
+          ? {
+              ...parcel,
+              status: 'Received',
+              weight: parcel.weight === 'Pending' ? '3.6 kg' : parcel.weight,
+              dimensions: parcel.dimensions === 'Pending' ? '38 x 28 x 22 cm' : parcel.dimensions,
+              notes: 'Received and measured at warehouse',
+            }
+          : parcel,
+      ),
+    );
+  }
+
+  function uploadParcelDocument(tracking, field) {
+    setParcels((existing) =>
+      existing.map((parcel) =>
+        parcel.tracking === tracking
+          ? {
+              ...parcel,
+              [field]: true,
+              status: parcel.status === 'Received' && field === 'payment' ? 'Ready for packing' : parcel.status,
+            }
+          : parcel,
       ),
     );
   }
@@ -229,6 +310,49 @@ function App() {
       ...existing,
     ]);
     setActiveSection('packing');
+  }
+
+  function closeContainment(number) {
+    setContainments((existing) =>
+      existing.map((box) =>
+        box.number === number
+          ? {
+              ...box,
+              status: 'Locked',
+              closed: new Date().toISOString().slice(0, 10),
+            }
+          : box,
+      ),
+    );
+  }
+
+  function assignContainer(number) {
+    setContainments((existing) =>
+      existing.map((box, index) =>
+        box.number === number
+          ? {
+              ...box,
+              container: box.container === 'Pending' ? `CMAU-48291${index}-7` : box.container,
+              status: box.status === 'Open' ? 'Packing in progress' : box.status,
+            }
+          : box,
+      ),
+    );
+  }
+
+  function updateShipmentCustoms(shipmentId, customs) {
+    setShipments((existing) =>
+      existing.map((shipment) =>
+        shipment.id === shipmentId
+          ? {
+              ...shipment,
+              customs,
+              status: customs === 'Customs cleared' ? 'Customs cleared' : 'In customs clearance',
+              delivery: customs === 'Customs cleared' ? 'Cleared for delivery' : shipment.delivery,
+            }
+          : shipment,
+      ),
+    );
   }
 
   if (screen === 'register') {
@@ -301,9 +425,14 @@ function App() {
             parcels={scoped.parcels}
             containments={scoped.containments}
             onCreateShipment={createShipment}
+            onAddParcelToShipment={addParcelToShipment}
             onAddUser={addUser}
             onReceiveParcel={receiveParcel}
+            onUploadParcelDocument={uploadParcelDocument}
             onOpenContainment={openContainment}
+            onCloseContainment={closeContainment}
+            onAssignContainer={assignContainer}
+            onUpdateShipmentCustoms={updateShipmentCustoms}
             setUsers={setUsers}
           />
         </section>
@@ -444,7 +573,7 @@ function Dashboard({ user, shipments, parcels, containments, onOpenContainment }
   );
 }
 
-function Shipments({ user, shipments, onCreateShipment }) {
+function Shipments({ user, shipments, onCreateShipment, onAddParcelToShipment }) {
   return (
     <div className="section-stack">
       {user.role === 'Client' && <ShipmentForm onCreateShipment={onCreateShipment} />}
@@ -473,6 +602,13 @@ function Shipments({ user, shipments, onCreateShipment }) {
             </tbody>
           </table>
         </div>
+        {user.role === 'Client' && (
+          <div className="shipment-add-grid">
+            {shipments.map((shipment) => (
+              <AddParcelInline key={shipment.id} shipment={shipment} onAddParcelToShipment={onAddParcelToShipment} />
+            ))}
+          </div>
+        )}
       </Panel>
     </div>
   );
@@ -492,7 +628,7 @@ function ShipmentForm({ onCreateShipment }) {
       </div>
       <div className="placeholder-upload">
         <FileText size={18} />
-        Invoice and payment proof upload placeholders are ready for backend storage integration.
+        Invoice and payment proof placeholders are included for every parcel record.
       </div>
       <button className="primary-action" onClick={() => onCreateShipment(form)} disabled={!form.destination}>
         <Plus size={18} />
@@ -502,7 +638,31 @@ function ShipmentForm({ onCreateShipment }) {
   );
 }
 
-function Parcels({ parcels }) {
+function AddParcelInline({ shipment, onAddParcelToShipment }) {
+  const [tracking, setTracking] = useState('');
+  return (
+    <div className="inline-add">
+      <div>
+        <strong>{shipment.id}</strong>
+        <span>Add tracking before warehouse packing is closed.</span>
+      </div>
+      <input value={tracking} onChange={(event) => setTracking(event.target.value)} placeholder="Courier tracking number" />
+      <button
+        className="secondary-action"
+        disabled={!tracking.trim()}
+        onClick={() => {
+          onAddParcelToShipment(shipment.id, tracking);
+          setTracking('');
+        }}
+      >
+        <Plus size={17} />
+        Add parcel
+      </button>
+    </div>
+  );
+}
+
+function Parcels({ parcels, onUploadParcelDocument }) {
   return (
     <Panel title="Incoming Parcels">
       <div className="card-grid">
@@ -515,9 +675,21 @@ function Parcels({ parcels }) {
             <Status label={parcel.status} />
             <dl>
               <dt>Weight</dt><dd>{parcel.weight}</dd>
+              <dt>Dimensions</dt><dd>{parcel.dimensions}</dd>
               <dt>Invoice</dt><dd>{parcel.invoice ? 'Uploaded' : 'Missing'}</dd>
               <dt>Payment</dt><dd>{parcel.payment ? 'Uploaded' : 'Missing'}</dd>
+              <dt>Notes</dt><dd>{parcel.notes}</dd>
             </dl>
+            <div className="parcel-actions">
+              <button className="secondary-action" disabled={parcel.invoice} onClick={() => onUploadParcelDocument(parcel.tracking, 'invoice')}>
+                <UploadCloud size={17} />
+                Invoice
+              </button>
+              <button className="secondary-action" disabled={parcel.payment} onClick={() => onUploadParcelDocument(parcel.tracking, 'payment')}>
+                <UploadCloud size={17} />
+                Payment
+              </button>
+            </div>
           </article>
         ))}
       </div>
@@ -549,7 +721,7 @@ function Receiving({ parcels, onReceiveParcel }) {
   );
 }
 
-function Packing({ containments, onOpenContainment }) {
+function Packing({ containments, onOpenContainment, onCloseContainment, onAssignContainer }) {
   return (
     <div className="section-stack">
       <div className="toolbar-row">
@@ -578,7 +750,17 @@ function Packing({ containments, onOpenContainment }) {
               <dt>Destination</dt><dd>{box.destination}</dd>
               <dt>Container</dt><dd>{box.container}</dd>
             </dl>
-            <Status label={box.status} />
+            <div className="label-actions">
+              <Status label={box.status} />
+              <button className="secondary-action" disabled={box.status === 'Locked'} onClick={() => onCloseContainment(box.number)}>
+                <Lock size={17} />
+                Close box
+              </button>
+              <button className="secondary-action" onClick={() => onAssignContainer(box.number)}>
+                <Container size={17} />
+                Assign container
+              </button>
+            </div>
           </article>
         ))}
       </div>
@@ -611,6 +793,13 @@ function UsersPage({ users, onAddUser, setUsers }) {
         {users.map((user) => (
           <div className="user-row" key={user.id}>
             <RecordRow title={user.name} meta={`${user.email} - ${user.code}`} status={user.role} />
+            <select
+              className="compact-select"
+              value={user.role}
+              onChange={(event) => setUsers((existing) => existing.map((item) => (item.id === user.id ? { ...item, role: event.target.value } : item)))}
+            >
+              {roles.map((role) => <option key={role}>{role}</option>)}
+            </select>
             <button
               className="secondary-action"
               onClick={() => setUsers((existing) => existing.map((item) => (item.id === user.id ? { ...item, active: !item.active } : item)))}
@@ -635,11 +824,21 @@ function Customers({ shipments }) {
   );
 }
 
-function Customs({ shipments }) {
+function Customs({ shipments, onUpdateShipmentCustoms }) {
   return (
     <Panel title="Customs Clearance">
       {shipments.map((shipment) => (
-        <RecordRow key={shipment.id} title={shipment.id} meta={`${shipment.customer} - ${shipment.customs}`} status={shipment.status} />
+        <div className="customs-row" key={shipment.id}>
+          <RecordRow title={shipment.id} meta={`${shipment.customer} - ${shipment.customs}`} status={shipment.status} />
+          <div className="customs-actions">
+            <button className="secondary-action" onClick={() => onUpdateShipmentCustoms(shipment.id, 'Documents under review')}>
+              Review docs
+            </button>
+            <button className="secondary-action" onClick={() => onUpdateShipmentCustoms(shipment.id, 'Customs cleared')}>
+              Clear
+            </button>
+          </div>
+        </div>
       ))}
     </Panel>
   );
