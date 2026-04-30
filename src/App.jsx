@@ -1,4 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  acceptInvite,
+  AuthError,
+  getSettings,
+  getUser,
+  handleAuthCallback,
+  login as identityLogin,
+  logout as identityLogout,
+  MissingIdentityError,
+  onAuthChange,
+  requestPasswordRecovery,
+  signup as identitySignup,
+  updateUser,
+} from '@netlify/identity';
 import {
   Archive,
   BarChart3,
@@ -141,6 +155,10 @@ function App() {
   const [screen, setScreen] = useState('login');
   const [users, setUsers] = useState(demoUsers);
   const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMessage, setAuthMessage] = useState('');
+  const [authSettings, setAuthSettings] = useState({ disableSignup: false });
+  const [inviteToken, setInviteToken] = useState('');
   const [activeSection, setActiveSection] = useState('dashboard');
   const [shipments, setShipments] = useState(initialShipments);
   const [parcels, setParcels] = useState(initialParcels);
@@ -149,16 +167,86 @@ function App() {
 
   const scoped = useMemo(() => scopeRecords(currentUser, shipments, parcels, containments), [currentUser, shipments, parcels, containments]);
 
-  function handleLogin(email) {
-    const selected = users.find((user) => user.email === email && user.active);
-    if (selected) {
-      setCurrentUser(selected);
-      setScreen('app');
-      setActiveSection('dashboard');
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadIdentitySession() {
+      try {
+        const callback = await handleAuthCallback();
+        if (!isMounted) return;
+
+        if (callback?.type === 'invite') {
+          setInviteToken(callback.token || '');
+          setScreen('accept-invite');
+          setAuthMessage('Set a password to activate this account.');
+        } else if (callback?.type === 'recovery') {
+          setCurrentUser(mapIdentityUser(callback.user, users));
+          setScreen('reset-password');
+          setAuthMessage('Enter a new password to finish account recovery.');
+        } else if (callback?.user) {
+          enterAuthenticatedApp(callback.user);
+          setAuthMessage(callback.type === 'confirmation' ? 'Email confirmed. The account is ready.' : '');
+        }
+
+        const [settingsResult, userResult] = await Promise.allSettled([getSettings(), getUser()]);
+        if (!isMounted) return;
+
+        if (settingsResult.status === 'fulfilled') {
+          setAuthSettings(settingsResult.value);
+        }
+
+        if (!callback && userResult.status === 'fulfilled' && userResult.value) {
+          enterAuthenticatedApp(userResult.value);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setAuthMessage(toAuthMessage(error));
+        }
+      } finally {
+        if (isMounted) {
+          setAuthLoading(false);
+        }
+      }
+    }
+
+    const unsubscribe = onAuthChange((event, user) => {
+      if (!isMounted) return;
+      if (event === 'logout') {
+        setCurrentUser(null);
+        setScreen('login');
+        return;
+      }
+      if (user && event !== 'recovery') {
+        enterAuthenticatedApp(user);
+      }
+    });
+
+    loadIdentitySession();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  function enterAuthenticatedApp(identityUser, section = 'dashboard') {
+    const appUser = mapIdentityUser(identityUser, users);
+    setCurrentUser(appUser);
+    setScreen('app');
+    setActiveSection(section);
+  }
+
+  async function handleLogin(credentials) {
+    setAuthMessage('');
+    try {
+      const identityUser = await identityLogin(credentials.email, credentials.password);
+      enterAuthenticatedApp(identityUser);
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
     }
   }
 
-  function handleRegister(profile) {
+  async function handleRegister(profile) {
     const code = profile.company
       .split(/\s+/)
       .map((part) => part[0])
@@ -173,10 +261,70 @@ function App() {
       active: true,
       code: code || 'NEW',
     };
-    setUsers((existing) => [...existing, newUser]);
-    setCurrentUser(newUser);
-    setScreen('app');
-    setActiveSection('shipments');
+    setAuthMessage('');
+    try {
+      const identityUser = await identitySignup(profile.email, profile.password, {
+        full_name: profile.company,
+        company_name: profile.company,
+        contact_person: profile.contact,
+        destination_country: profile.country,
+        client_code: newUser.code,
+      });
+      setUsers((existing) => [...existing.filter((user) => user.email !== newUser.email), newUser]);
+      if (identityUser.confirmedAt) {
+        enterAuthenticatedApp(identityUser, 'shipments');
+      } else {
+        setScreen('login');
+        setAuthMessage('Account created. Check the registered email address to confirm it before signing in.');
+      }
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
+    }
+  }
+
+  async function handlePasswordRecovery(email) {
+    setAuthMessage('');
+    try {
+      await requestPasswordRecovery(email);
+      setAuthMessage('Password recovery email sent. Use the link in that email to set a new password.');
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
+    }
+  }
+
+  async function handlePasswordReset(password) {
+    setAuthMessage('');
+    try {
+      const identityUser = await updateUser({ password });
+      enterAuthenticatedApp(identityUser);
+      setAuthMessage('Password updated.');
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
+    }
+  }
+
+  async function handleInviteAccept(password) {
+    setAuthMessage('');
+    try {
+      const identityUser = await acceptInvite(inviteToken, password);
+      enterAuthenticatedApp(identityUser);
+      setAuthMessage('Account activated.');
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
+    }
+  }
+
+  async function handleLogout() {
+    setAuthMessage('');
+    try {
+      await identityLogout();
+    } catch (error) {
+      setAuthMessage(toAuthMessage(error));
+    } finally {
+      setCurrentUser(null);
+      setScreen('login');
+      setActiveSection('dashboard');
+    }
   }
 
   function createShipment(form) {
@@ -355,12 +503,33 @@ function App() {
     );
   }
 
+  if (authLoading) {
+    return <AuthLoading />;
+  }
+
   if (screen === 'register') {
-    return <RegisterView onRegister={handleRegister} onLogin={() => setScreen('login')} />;
+    return <RegisterView message={authMessage} onRegister={handleRegister} onLogin={() => setScreen('login')} />;
+  }
+
+  if (screen === 'reset-password') {
+    return <PasswordTaskView title="Set New Password" message={authMessage} actionLabel="Update password" onSubmit={handlePasswordReset} />;
+  }
+
+  if (screen === 'accept-invite') {
+    return <PasswordTaskView title="Activate Account" message={authMessage} actionLabel="Save password" onSubmit={handleInviteAccept} />;
   }
 
   if (!currentUser) {
-    return <LoginView users={users} onLogin={handleLogin} onRegister={() => setScreen('register')} />;
+    return (
+      <LoginView
+        users={users}
+        message={authMessage}
+        registrationDisabled={authSettings.disableSignup}
+        onLogin={handleLogin}
+        onRegister={() => setScreen('register')}
+        onPasswordRecovery={handlePasswordRecovery}
+      />
+    );
   }
 
   const allowedNav = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -409,7 +578,7 @@ function App() {
               <span>{currentUser.name}</span>
               <strong>{currentUser.role}</strong>
             </div>
-            <button className="icon-button" onClick={() => setCurrentUser(null)} aria-label="Log out">
+            <button className="icon-button" onClick={handleLogout} aria-label="Log out">
               <LogOut size={19} />
             </button>
           </div>
@@ -441,9 +610,11 @@ function App() {
   );
 }
 
-function LoginView({ users, onLogin, onRegister }) {
-  const [email, setEmail] = useState(users[0].email);
+function LoginView({ users, message, registrationDisabled, onLogin, onRegister, onPasswordRecovery }) {
+  const [form, setForm] = useState({ email: users[0].email, password: '' });
+  const [showRecovery, setShowRecovery] = useState(false);
   const activeUsers = users.filter((user) => user.active);
+  const canSubmit = form.email && form.password;
 
   return (
     <div className="auth-page">
@@ -458,9 +629,18 @@ function LoginView({ users, onLogin, onRegister }) {
         <div className="auth-grid">
           <div className="login-card">
             <h2>Sign in</h2>
+            <AuthNotice message={message} />
             <label>
-              Demo account
-              <select value={email} onChange={(event) => setEmail(event.target.value)}>
+              Account email
+              <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+            </label>
+            <label>
+              Password
+              <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+            </label>
+            <label>
+              Known account emails
+              <select value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })}>
                 {activeUsers.map((user) => (
                   <option value={user.email} key={user.id}>
                     {user.role} - {user.email}
@@ -468,13 +648,27 @@ function LoginView({ users, onLogin, onRegister }) {
                 ))}
               </select>
             </label>
-            <button className="primary-action" onClick={() => onLogin(email)}>
+            <button className="primary-action" disabled={!canSubmit} onClick={() => onLogin(form)}>
               <ShieldCheck size={18} />
-              Continue
+              Sign in
             </button>
-            <button className="text-action" onClick={onRegister}>
-              Register a client account
-            </button>
+            <div className="auth-links">
+              <button className="text-action" onClick={() => setShowRecovery((visible) => !visible)}>
+                Forgot password
+              </button>
+              {!registrationDisabled && (
+                <button className="text-action" onClick={onRegister}>
+                  Register a client account
+                </button>
+              )}
+            </div>
+            {showRecovery && (
+              <div className="recovery-box">
+                <button className="secondary-action" disabled={!form.email} onClick={() => onPasswordRecovery(form.email)}>
+                  Send recovery email
+                </button>
+              </div>
+            )}
           </div>
           <div className="tracking-strip">
             <Metric label="Warehouse parcels" value="147" />
@@ -487,9 +681,9 @@ function LoginView({ users, onLogin, onRegister }) {
   );
 }
 
-function RegisterView({ onRegister, onLogin }) {
-  const [form, setForm] = useState({ company: '', email: '', contact: '', country: '' });
-  const canSubmit = form.company && form.email;
+function RegisterView({ message, onRegister, onLogin }) {
+  const [form, setForm] = useState({ company: '', email: '', contact: '', country: '', password: '', confirmPassword: '' });
+  const canSubmit = form.company && form.email && form.password.length >= 8 && form.password === form.confirmPassword;
 
   return (
     <div className="auth-page">
@@ -502,11 +696,14 @@ function RegisterView({ onRegister, onLogin }) {
           </div>
         </div>
         <div className="login-card wide">
+          <AuthNotice message={message} />
           <div className="form-grid">
             <Input label="Company name" value={form.company} onChange={(company) => setForm({ ...form, company })} />
             <Input label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
             <Input label="Contact person" value={form.contact} onChange={(contact) => setForm({ ...form, contact })} />
             <Input label="Destination country" value={form.country} onChange={(country) => setForm({ ...form, country })} />
+            <Input label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+            <Input label="Confirm password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
           </div>
           <button className="primary-action" disabled={!canSubmit} onClick={() => onRegister(form)}>
             <UserPlus size={18} />
@@ -519,6 +716,52 @@ function RegisterView({ onRegister, onLogin }) {
       </section>
     </div>
   );
+}
+
+function AuthLoading() {
+  return (
+    <div className="auth-page">
+      <section className="auth-panel compact">
+        <div className="auth-brand">
+          <img src="/chinalink24-app.svg" alt="ChinaLink24 App" />
+          <div>
+            <h1>ChinaLink24 App</h1>
+            <p>Preparing secure account access.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function PasswordTaskView({ title, message, actionLabel, onSubmit }) {
+  const [password, setPassword] = useState('');
+  return (
+    <div className="auth-page">
+      <section className="auth-panel compact">
+        <div className="auth-brand">
+          <img src="/chinalink24-app.svg" alt="ChinaLink24 App" />
+          <div>
+            <h1>{title}</h1>
+            <p>Choose a password for secure account access.</p>
+          </div>
+        </div>
+        <div className="login-card wide">
+          <AuthNotice message={message} />
+          <Input label="New password" type="password" value={password} onChange={setPassword} />
+          <button className="primary-action" disabled={password.length < 8} onClick={() => onSubmit(password)}>
+            <Lock size={18} />
+            {actionLabel}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AuthNotice({ message }) {
+  if (!message) return null;
+  return <p className="auth-message">{message}</p>;
 }
 
 function SectionRouter(props) {
@@ -919,6 +1162,70 @@ function scopeRecords(user, shipments, parcels, containments) {
     parcels: parcels.filter((parcel) => parcel.client === user.name),
     containments: containments.filter((box) => box.client === user.name || box.code === user.code),
   };
+}
+
+function mapIdentityUser(identityUser, localUsers) {
+  if (!identityUser) return null;
+  const matchedUser = localUsers.find((user) => user.email.toLowerCase() === (identityUser.email || '').toLowerCase());
+  const metadata = identityUser.userMetadata || {};
+  const name = identityUser.name || metadata.company_name || metadata.full_name || matchedUser?.name || identityUser.email || 'ChinaLink24 User';
+  const role = resolveRole(identityUser, matchedUser);
+  const code = metadata.client_code || metadata.company_code || matchedUser?.code || createClientCode(String(name));
+
+  return {
+    id: identityUser.id,
+    name: String(name),
+    email: identityUser.email || matchedUser?.email || '',
+    role,
+    active: true,
+    code: String(code).toUpperCase(),
+  };
+}
+
+function resolveRole(identityUser, matchedUser) {
+  const identityRoles = [
+    ...(identityUser.roles || []),
+    ...(Array.isArray(identityUser.appMetadata?.roles) ? identityUser.appMetadata.roles : []),
+    identityUser.role,
+  ].filter(Boolean);
+  const normalized = identityRoles.map((role) => roleAliases[String(role).toLowerCase()]).find(Boolean);
+  return normalized || matchedUser?.role || 'Client';
+}
+
+const roleAliases = {
+  admin: 'Admin',
+  staff: 'Staff',
+  operations: 'Staff',
+  warehouse: 'Warehouse staff',
+  'warehouse staff': 'Warehouse staff',
+  customs: 'Customs staff',
+  'customs staff': 'Customs staff',
+  client: 'Client',
+  member: 'Client',
+};
+
+function createClientCode(name) {
+  return (
+    name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join('')
+      .slice(0, 4)
+      .toUpperCase() || 'NEW'
+  );
+}
+
+function toAuthMessage(error) {
+  if (error instanceof MissingIdentityError) {
+    return 'Account access is not enabled for this environment. Use the deployed Netlify site or Netlify Dev.';
+  }
+  if (error instanceof AuthError) {
+    if (error.status === 401) return 'Invalid email or password.';
+    if (error.status === 403) return 'This account action is not allowed. Contact an administrator.';
+    if (error.status === 422) return 'Check the email address and password requirements.';
+    return error.message;
+  }
+  return 'Account access could not be completed. Try again.';
 }
 
 export default App;
