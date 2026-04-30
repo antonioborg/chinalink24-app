@@ -14,12 +14,14 @@ import {
   updateUser,
 } from '@netlify/identity';
 import {
+  AlertTriangle,
   Archive,
   BarChart3,
   Boxes,
   ClipboardCheck,
   Container,
   CreditCard,
+  Edit3,
   FileText,
   KeyRound,
   LayoutDashboard,
@@ -33,11 +35,13 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   Truck,
   UploadCloud,
   UserCog,
   UserPlus,
   Users,
+  X,
 } from 'lucide-react';
 
 const roles = ['Admin', 'Staff', 'Warehouse staff', 'Customs staff', 'Client'];
@@ -46,17 +50,17 @@ const useMockAuth = true;
 // Backend integration point: replace these session-scoped mocks with API calls
 // backed by Netlify Functions and a server-side PostgreSQL connection.
 const demoUsers = [
-  { id: 1, name: 'Mina Zhang', email: 'admin@chinalink24.com', role: 'Admin', active: true, code: 'HQ', password: 'demo1234' },
-  { id: 2, name: 'David Mensah', email: 'staff@chinalink24.com', role: 'Staff', active: true, code: 'OPS', password: 'demo1234' },
-  { id: 3, name: 'Lin Wei', email: 'warehouse@chinalink24.com', role: 'Warehouse staff', active: true, code: 'WH', password: 'demo1234' },
-  { id: 4, name: 'Amara Okafor', email: 'customs@chinalink24.com', role: 'Customs staff', active: true, code: 'CUS', password: 'demo1234' },
-  { id: 5, name: 'TechNova Imports', email: 'client@technova.example', role: 'Client', active: true, code: 'TECH', password: 'demo1234' },
+  { id: 1, name: 'Mina Zhang', email: 'admin@chinalink24.com', phone: '+86 755 4108 2201', role: 'Admin', active: true, code: 'HQ', clientId: '', notes: 'Primary system administrator', password: 'demo1234' },
+  { id: 2, name: 'David Mensah', email: 'staff@chinalink24.com', phone: '+233 24 612 7048', role: 'Staff', active: true, code: 'OPS', clientId: '', notes: 'Operations coordinator', password: 'demo1234' },
+  { id: 3, name: 'Lin Wei', email: 'warehouse@chinalink24.com', phone: '+86 20 5418 9204', role: 'Warehouse staff', active: true, code: 'WH', clientId: '', notes: 'Guangzhou warehouse receiving', password: 'demo1234' },
+  { id: 4, name: 'Amara Okafor', email: 'customs@chinalink24.com', phone: '+234 802 118 3320', role: 'Customs staff', active: true, code: 'CUS', clientId: '', notes: 'Customs document review', password: 'demo1234' },
+  { id: 5, name: 'TechNova Imports', email: 'client@technova.example', phone: '+233 24 410 8821', role: 'Client', active: true, code: 'TECH', clientId: 'CUS-001', notes: 'Linked to TechNova Imports customer account', password: 'demo1234' },
 ];
 
 const initialCustomers = [
-  { id: 'CUS-001', name: 'TechNova Imports', code: 'TECH', destination: 'Ghana', contact: 'Adjoa Mensah', status: 'Active' },
-  { id: 'CUS-002', name: 'Blue Harbor Retail', code: 'BHR', destination: 'Nigeria', contact: 'Chinedu Okoro', status: 'Active' },
-  { id: 'CUS-003', name: 'Northline Parts', code: 'NLP', destination: 'Kenya', contact: 'Grace Wanjiku', status: 'Customs review' },
+  { id: 'CUS-001', name: 'TechNova Imports', code: 'TECH', companyName: 'TechNova Imports Ltd', destination: 'Ghana', contact: 'Adjoa Mensah', email: 'client@technova.example', phone: '+233 24 410 8821', address: 'Airport Industrial Area, Accra', country: 'Ghana', taxId: 'GH-TIN-23814', notes: 'Priority electronics importer', status: 'Active' },
+  { id: 'CUS-002', name: 'Blue Harbor Retail', code: 'BHR', companyName: 'Blue Harbor Retail Co.', destination: 'Nigeria', contact: 'Chinedu Okoro', email: 'ops@blueharbor.example', phone: '+234 802 410 5901', address: 'Apapa Commercial Road, Lagos', country: 'Nigeria', taxId: 'NG-VAT-88310', notes: 'Consolidates weekly mixed retail parcels', status: 'Active' },
+  { id: 'CUS-003', name: 'Northline Parts', code: 'NLP', companyName: 'Northline Auto Parts', destination: 'Kenya', contact: 'Grace Wanjiku', email: 'imports@northline.example', phone: '+254 712 330 482', address: 'Mombasa Road, Nairobi', country: 'Kenya', taxId: 'KE-PIN-77542', notes: 'Requires customs document review before release', status: 'Customs review' },
 ];
 
 const initialShipments = [
@@ -219,6 +223,9 @@ const statusTone = {
   Created: 'blue',
   Loading: 'amber',
   Loaded: 'green',
+  Shipped: 'blue',
+  Arrived: 'amber',
+  'In customs': 'red',
   'In transit': 'blue',
   Closed: 'neutral',
   Cleared: 'green',
@@ -227,6 +234,9 @@ const statusTone = {
 };
 
 const availableContainerStatuses = ['Created', 'Loading', 'Loaded', 'In transit'];
+const allContainerStatuses = ['Created', 'Loading', 'Loaded', 'In transit', 'Shipped', 'Arrived', 'In customs', 'Cleared', 'Unloaded', 'Closed'];
+const protectedContainmentStatuses = ['Closed', 'Locked', 'Assigned to shipping container', 'Loaded', 'Shipped', 'Delivered'];
+const protectedContainerStatuses = ['Shipped', 'Arrived', 'In customs', 'Cleared', 'Unloaded', 'Closed'];
 const mockStateKey = 'chinalink24_mock_state_v2';
 
 function createInitialMockState() {
@@ -250,6 +260,7 @@ function loadMockState() {
       ...createInitialMockState(),
       ...parsed,
       users: (parsed.users || demoUsers).map((user) => ({ password: 'demo1234', ...user })),
+      customers: (parsed.customers || initialCustomers).map(normalizeCustomer),
       containmentSizes: parsed.containmentSizes || initialContainmentSizes,
       shippingContainers: parsed.shippingContainers || initialShippingContainers,
     };
@@ -410,7 +421,7 @@ function App() {
       setUsers((existing) => [...existing.filter((user) => user.email !== newUser.email), newUser]);
       setCustomers((existing) => [
         ...existing.filter((customer) => customer.code !== newUser.code),
-        { id: `CUS-${Date.now()}`, name: newUser.name, code: newUser.code, destination: profile.country, contact: profile.contact, status: 'Active' },
+        normalizeCustomer({ id: `CUS-${Date.now()}`, name: newUser.name, code: newUser.code, companyName: newUser.name, destination: profile.country, country: profile.country, contact: profile.contact, email: profile.email, status: 'Active' }),
       ]);
       setCurrentUser(newUser);
       setScreen('app');
@@ -564,25 +575,146 @@ function App() {
   }
 
   function addUser(form) {
+    const clientRecord = customers.find((customer) => customer.id === form.clientId);
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const role = form.role;
+    if (!name) return 'Full name is required.';
+    if (!email) return 'Email / username is required.';
+    if (!roles.includes(role)) return 'Role is required.';
+    if (users.some((user) => user.email.toLowerCase() === email.toLowerCase())) return 'Another user already uses this email / username.';
+    if (role === 'Client' && !clientRecord) return 'Linked client/customer is required for Client users.';
+    if (!form.password || form.password.length < 8) return 'Temporary password must be at least 8 characters.';
+
     const newUser = {
       id: Date.now(),
-      name: form.name,
-      email: form.email,
-      role: form.role,
+      name,
+      email,
+      phone: form.phone || '',
+      role,
       active: true,
-      code: form.code.toUpperCase(),
+      code: role === 'Client' && clientRecord ? clientRecord.code : form.code.toUpperCase(),
+      clientId: role === 'Client' ? clientRecord.id : '',
+      notes: form.notes || '',
       password: form.password,
     };
     setUsers((existing) => [
       ...existing,
       newUser,
     ]);
-    if (newUser.role === 'Client') {
-      setCustomers((existing) => [
-        ...existing.filter((customer) => customer.code !== newUser.code),
-        { id: `CUS-${newUser.id}`, name: newUser.name, code: newUser.code, destination: 'Pending', contact: newUser.name, status: 'Active' },
-      ]);
+    return `${newUser.name} created.`;
+  }
+
+  function editUser(userId, form) {
+    if (currentUser?.role !== 'Admin') return 'Only Admin users can edit user accounts.';
+    const current = users.find((user) => user.id === userId);
+    if (!current) return 'User account was not found.';
+
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const role = form.role;
+    const active = Boolean(form.active);
+    const selectedClient = customers.find((customer) => customer.id === form.clientId);
+    if (!name) return 'Full name is required.';
+    if (!email) return 'Email / username is required.';
+    if (!roles.includes(role)) return 'Role is required.';
+    if (users.some((user) => user.id !== userId && user.email.toLowerCase() === email.toLowerCase())) {
+      return 'Another user already uses this email / username.';
     }
+    if (role === 'Client' && !selectedClient) return 'Linked client/customer is required for Client users.';
+
+    const activeAdmins = users.filter((user) => user.role === 'Admin' && user.active);
+    const isLastActiveAdmin = current.role === 'Admin' && current.active && activeAdmins.length === 1;
+    if (isLastActiveAdmin && role !== 'Admin') {
+      return 'The last active Admin user cannot be changed to a non-admin role.';
+    }
+    if (isLastActiveAdmin && !active) {
+      return 'The last active Admin user cannot be disabled.';
+    }
+    if (
+      current.role === 'Admin'
+      && (role !== 'Admin' || (!active && current.active))
+      && typeof window !== 'undefined'
+      && !window.confirm(`${current.name} is an Admin user. Save this sensitive account change?`)
+    ) {
+      return 'User edit cancelled.';
+    }
+
+    const saved = {
+      ...current,
+      name,
+      email,
+      phone: String(form.phone || '').trim(),
+      role,
+      active,
+      clientId: role === 'Client' ? selectedClient.id : '',
+      code: role === 'Client' ? selectedClient.code : current.code,
+      notes: String(form.notes || '').trim(),
+    };
+    setUsers((existing) => existing.map((user) => (user.id === userId ? saved : user)));
+    if (currentUser?.id === userId) {
+      setCurrentUser(saved);
+    }
+    return `${saved.name} saved.`;
+  }
+
+  function editCustomer(customerId, form) {
+    const current = customers.find((customer) => customer.id === customerId);
+    if (!current) return 'Client record was not found.';
+    const code = form.code.trim().toUpperCase();
+    const name = form.name.trim();
+    if (!name || !code) return 'Client name and client code are required.';
+    if (customers.some((customer) => customer.id !== customerId && customer.code.toUpperCase() === code)) {
+      return 'Another client already uses this client code.';
+    }
+
+    const saved = normalizeCustomer({
+      ...current,
+      ...form,
+      name,
+      code,
+      companyName: form.companyName.trim(),
+      contact: form.contact.trim(),
+      status: form.active ? 'Active' : 'Inactive',
+      destination: form.country.trim() || form.destination || current.destination,
+      country: form.country.trim(),
+    });
+    const oldName = current.name;
+    const oldCode = current.code;
+
+    setCustomers((existing) => existing.map((customer) => (customer.id === customerId ? saved : customer)));
+    setUsers((existing) =>
+      existing.map((user) =>
+        user.role === 'Client' && (user.code === oldCode || user.name === oldName)
+          ? { ...user, name: saved.name, code: saved.code, active: saved.status === 'Active' }
+          : user,
+      ),
+    );
+    setCurrentUser((existing) =>
+      existing?.role === 'Client' && (existing.code === oldCode || existing.name === oldName)
+        ? { ...existing, name: saved.name, code: saved.code, active: saved.status === 'Active' }
+        : existing,
+    );
+    setShipments((existing) =>
+      existing.map((shipment) =>
+        shipment.customer === oldName || shipment.clientCode === oldCode
+          ? { ...shipment, customer: saved.name, clientCode: saved.code, destination: saved.country || shipment.destination }
+          : shipment,
+      ),
+    );
+    setParcels((existing) =>
+      existing.map((parcel) =>
+        parcel.client === oldName ? { ...parcel, client: saved.name } : parcel,
+      ),
+    );
+    setContainments((existing) =>
+      existing.map((box) =>
+        box.clientId === customerId || box.client === oldName || box.code === oldCode
+          ? { ...box, client: saved.name, clientId: saved.id, code: saved.code, destination: saved.country || box.destination }
+          : box,
+      ),
+    );
+    return `${saved.name} saved. Existing containment numbers were left unchanged.`;
   }
 
   async function changeOwnPassword(form) {
@@ -726,6 +858,34 @@ function App() {
     return `${assignable.length} containment${assignable.length === 1 ? '' : 's'} assigned to ${container.number}.`;
   }
 
+  function deleteContainment(number) {
+    const box = containments.find((item) => item.number === number);
+    if (!box) return 'Containment was not found.';
+    const isAdmin = currentUser.role === 'Admin';
+    const hasContainer = box.container && box.container !== 'Pending';
+    const hasParcels = Number(box.parcels) > 0;
+    if (!isAdmin && (protectedContainmentStatuses.includes(box.status) || hasContainer)) {
+      return 'Only Admin can delete closed, locked, assigned, loaded, shipped, or delivered containments.';
+    }
+    const warning = hasParcels
+      ? `${box.number} has ${box.parcels} parcel${box.parcels === 1 ? '' : 's'} assigned. Deleting it will release those parcels back to packing. Continue?`
+      : `Delete containment ${box.number}? This cannot be undone.`;
+    if (typeof window !== 'undefined' && !window.confirm(isAdmin && hasParcels ? `Admin warning: ${warning}` : warning)) {
+      return 'Containment deletion cancelled.';
+    }
+
+    setContainments((existing) => existing.filter((item) => item.number !== number));
+    setParcels((existing) => existing.map((parcel) => releaseParcelFromContainment(parcel, number)));
+    setShippingContainers((existing) =>
+      existing.map((container) =>
+        container.number === box.container || container.id === box.container
+          ? { ...container, containments: Math.max(0, Number(container.containments || 0) - 1) }
+          : container,
+      ),
+    );
+    return `${box.number} deleted. Assigned parcels were returned to packing.`;
+  }
+
   function addShippingContainer(form) {
     const number = form.number.trim().toUpperCase();
     if (!number) return 'Container number is required.';
@@ -749,6 +909,66 @@ function App() {
       ...existing,
     ]);
     return `Shipping container ${number} created.`;
+  }
+
+  function editShippingContainer(containerId, form) {
+    const current = shippingContainers.find((container) => container.id === containerId);
+    if (!current) return 'Shipping container was not found.';
+    const number = form.number.trim().toUpperCase();
+    if (!number) return 'Container number is required.';
+    if (shippingContainers.some((container) => container.id !== containerId && container.number === number)) {
+      return 'A container with this number already exists.';
+    }
+    const saved = {
+      ...current,
+      id: number,
+      number,
+      sealNumber: form.sealNumber,
+      carrier: form.carrier,
+      vessel: form.vessel,
+      originPort: form.originPort,
+      destinationPort: form.destinationPort,
+      destination: form.destinationPort,
+      departureDate: form.departureDate,
+      eta: form.eta,
+      status: form.status,
+      notes: form.notes,
+    };
+    setShippingContainers((existing) => existing.map((container) => (container.id === containerId ? saved : container)));
+    if (current.number !== number) {
+      setContainments((existing) =>
+        existing.map((box) => (box.container === current.number ? { ...box, container: number } : box)),
+      );
+    }
+    return `Shipping container ${number} saved.`;
+  }
+
+  function deleteShippingContainer(containerId) {
+    const container = shippingContainers.find((item) => item.id === containerId);
+    if (!container) return 'Shipping container was not found.';
+    const isAdmin = currentUser.role === 'Admin';
+    const assignedContainments = containments.filter((box) => box.container === container.number);
+    if (!isAdmin && assignedContainments.length) {
+      return 'Only Admin can delete containers that have containments assigned.';
+    }
+    if (!isAdmin && protectedContainerStatuses.includes(container.status)) {
+      return 'Only Admin can delete shipped, arrived, customs, cleared, unloaded, or closed containers.';
+    }
+    const warning = assignedContainments.length
+      ? `Admin warning: ${container.number} has ${assignedContainments.length} containment${assignedContainments.length === 1 ? '' : 's'} assigned. Deleting it will unassign them and return them to closed or locked status. Continue?`
+      : `Delete shipping container ${container.number}? This cannot be undone.`;
+    if (typeof window !== 'undefined' && !window.confirm(warning)) {
+      return 'Container deletion cancelled.';
+    }
+    setShippingContainers((existing) => existing.filter((item) => item.id !== containerId));
+    setContainments((existing) =>
+      existing.map((box) =>
+        box.container === container.number
+          ? { ...box, container: 'Pending', status: restoredContainmentStatus(box) }
+          : box,
+      ),
+    );
+    return `${container.number} deleted. Assigned containments were unassigned.`;
   }
 
   function saveContainmentSize(form) {
@@ -828,6 +1048,7 @@ function App() {
   }
 
   const allowedNav = navItems.filter((item) => item.roles.includes(currentUser.role));
+  const visibleSection = allowedNav.some((item) => item.id === activeSection) ? activeSection : 'dashboard';
 
   return (
     <div className="app-shell">
@@ -844,7 +1065,7 @@ function App() {
             const Icon = item.icon;
             return (
               <button
-                className={activeSection === item.id ? 'active' : ''}
+                className={visibleSection === item.id ? 'active' : ''}
                 key={item.id}
                 onClick={() => {
                   setActiveSection(item.id);
@@ -866,7 +1087,7 @@ function App() {
           </button>
           <div className="topbar-logo">
             <img src="/chinalink24-app.svg" alt="" />
-            <span>{sectionTitle(activeSection)}</span>
+            <span>{sectionTitle(visibleSection)}</span>
           </div>
           <div className="topbar-actions">
             <div className="user-pill">
@@ -882,7 +1103,7 @@ function App() {
         {sidebarOpen && <button className="scrim" onClick={() => setSidebarOpen(false)} aria-label="Close navigation" />}
         <section className="content">
           <SectionRouter
-            section={activeSection}
+            section={visibleSection}
             user={currentUser}
             users={users}
             customers={customers}
@@ -897,19 +1118,23 @@ function App() {
             onCreateShipment={createShipment}
             onAddParcelToShipment={addParcelToShipment}
             onAddUser={addUser}
+            onEditUser={editUser}
             onReceiveParcel={receiveParcel}
             onUploadParcelDocument={uploadParcelDocument}
             onOpenContainment={openContainment}
             onCloseContainment={closeContainment}
+            onDeleteContainment={deleteContainment}
             onAssignContainer={assignContainer}
             onAddShippingContainer={addShippingContainer}
+            onEditShippingContainer={editShippingContainer}
+            onDeleteShippingContainer={deleteShippingContainer}
+            onEditCustomer={editCustomer}
             onSaveContainmentSize={saveContainmentSize}
             onToggleContainmentSize={toggleContainmentSize}
             onSetDefaultContainmentSize={setDefaultContainmentSize}
             onChangeOwnPassword={changeOwnPassword}
             onResetUserPassword={resetUserPassword}
             onUpdateShipmentCustoms={updateShipmentCustoms}
-            setUsers={setUsers}
           />
         </section>
       </main>
@@ -942,7 +1167,7 @@ function LoginView({ message, registrationDisabled, onLogin, onRegister, onPassw
             </label>
             <label>
               Password
-              <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
+              <input type="password" autoComplete="off" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
             </label>
             <button className="primary-action" disabled={!canSubmit} onClick={() => onLogin(form)}>
               <ShieldCheck size={18} />
@@ -998,8 +1223,8 @@ function RegisterView({ message, onRegister, onLogin }) {
             <Input label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
             <Input label="Contact person" value={form.contact} onChange={(contact) => setForm({ ...form, contact })} />
             <Input label="Destination country" value={form.country} onChange={(country) => setForm({ ...form, country })} />
-            <Input label="Password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
-            <Input label="Confirm password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
+            <Input label="Password" type="password" autoComplete="off" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+            <Input label="Confirm password" type="password" autoComplete="off" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
           </div>
           <button className="primary-action" disabled={!canSubmit} onClick={() => onRegister(form)}>
             <UserPlus size={18} />
@@ -1044,7 +1269,7 @@ function PasswordTaskView({ title, message, actionLabel, onSubmit }) {
         </div>
         <div className="login-card wide">
           <AuthNotice message={message} />
-          <Input label="New password" type="password" value={password} onChange={setPassword} />
+          <Input label="New password" type="password" autoComplete="off" value={password} onChange={setPassword} />
           <button className="primary-action" disabled={password.length < 8} onClick={() => onSubmit(password)}>
             <Lock size={18} />
             {actionLabel}
@@ -1261,7 +1486,7 @@ function Receiving({ parcels, onReceiveParcel }) {
   );
 }
 
-function Packing({ user, customers, containmentSizes, parcels, containments, shippingContainers, onOpenContainment, onCloseContainment, onAssignContainer }) {
+function Packing({ user, customers, containmentSizes, parcels, containments, shippingContainers, onOpenContainment, onCloseContainment, onDeleteContainment, onAssignContainer }) {
   const defaultSize = containmentSizes.find((size) => size.default && size.active) || containmentSizes.find((size) => size.active);
   const clientRecord = user.role === 'Client' ? customers.find((customer) => customer.code === user.code) : null;
   const [form, setForm] = useState({ clientId: clientRecord?.id || '', boxTypeId: defaultSize?.id || '', name: defaultSize?.name || '' });
@@ -1269,6 +1494,7 @@ function Packing({ user, customers, containmentSizes, parcels, containments, shi
   const selectedClient = customers.find((customer) => customer.id === form.clientId);
   const eligibleParcels = parcels.filter((parcel) => parcel.client === selectedClient?.name && ['Received', 'Ready for packing'].includes(parcel.status));
   const activeSizes = containmentSizes.filter((size) => size.active);
+  const canDeleteContainments = ['Admin', 'Staff', 'Warehouse staff'].includes(user.role);
 
   function submitOpenContainment() {
     const result = onOpenContainment(form);
@@ -1351,6 +1577,12 @@ function Packing({ user, customers, containmentSizes, parcels, containments, shi
                 <Lock size={17} />
                 Close box
               </button>
+              {canDeleteContainments && (
+                <button className="danger-action" onClick={() => setMessage(onDeleteContainment(box.number))}>
+                  <Trash2 size={17} />
+                  Delete
+                </button>
+              )}
             </div>
           </article>
         ))}
@@ -1410,32 +1642,69 @@ function AssignContainmentsPanel({ containments, shippingContainers, onAssignCon
   );
 }
 
-function UsersPage({ users, onAddUser, onResetUserPassword, setUsers }) {
-  const [form, setForm] = useState({ name: '', email: '', role: 'Client', code: '', password: '' });
+function UsersPage({ user: currentUser, users, customers, onAddUser, onEditUser, onResetUserPassword }) {
+  const firstClient = customers[0];
+  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'Client', code: firstClient?.code || '', clientId: firstClient?.id || '', notes: '', password: '' });
   const [message, setMessage] = useState('');
+  const [editingId, setEditingId] = useState('');
+  const isAdmin = currentUser.role === 'Admin';
+
   return (
     <div className="section-stack">
       <Panel title="Create User">
         <AuthNotice message={message} />
         <div className="form-grid">
-          <Input label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
-          <Input label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+          <Input label="Full name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+          <Input label="Email / username" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+          <Input label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
           <label>
             Role
-            <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+            <select
+              value={form.role}
+              onChange={(event) => {
+                const role = event.target.value;
+                setForm({ ...form, role, clientId: role === 'Client' ? form.clientId || firstClient?.id || '' : '', code: role === 'Client' ? form.code || firstClient?.code || '' : form.code });
+              }}
+            >
               {roles.map((role) => <option key={role}>{role}</option>)}
             </select>
           </label>
-          <Input label="Client code" value={form.code} onChange={(code) => setForm({ ...form, code })} />
-          <Input label="Temporary password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+          {form.role === 'Client' ? (
+            <label>
+              Linked client/customer
+              <select
+                value={form.clientId}
+                onChange={(event) => {
+                  const customer = customers.find((item) => item.id === event.target.value);
+                  setForm({ ...form, clientId: event.target.value, code: customer?.code || form.code });
+                }}
+              >
+                <option value="">Select client/customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} - {customer.code}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <Input label="User code" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+          )}
+          <Input label="Temporary password" type="password" autoComplete="off" value={form.password} onChange={(password) => setForm({ ...form, password })} />
+          <label className="span-2">
+            Notes
+            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+          </label>
         </div>
         <button
           className="primary-action"
-          disabled={!form.name || !form.email || !form.code || form.password.length < 8}
+          disabled={!form.name || !form.email || !form.code || (form.role === 'Client' && !form.clientId) || form.password.length < 8}
           onClick={() => {
-            onAddUser(form);
-            setMessage('User created.');
-            setForm({ name: '', email: '', role: 'Client', code: '', password: '' });
+            const result = onAddUser(form);
+            setMessage(result);
+            if (result.endsWith('created.')) {
+              setForm({ name: '', email: '', phone: '', role: 'Client', code: firstClient?.code || '', clientId: firstClient?.id || '', notes: '', password: '' });
+            }
           }}
         >
           <UserPlus size={18} />
@@ -1444,25 +1713,110 @@ function UsersPage({ users, onAddUser, onResetUserPassword, setUsers }) {
       </Panel>
       <Panel title="User Management">
         {users.map((user) => (
-          <div className="user-row" key={user.id}>
-            <RecordRow title={user.name} meta={`${user.email} - ${user.code}`} status={user.role} />
-            <select
-              className="compact-select"
-              value={user.role}
-              onChange={(event) => setUsers((existing) => existing.map((item) => (item.id === user.id ? { ...item, role: event.target.value } : item)))}
-            >
-              {roles.map((role) => <option key={role}>{role}</option>)}
-            </select>
-            <button
-              className="secondary-action"
-              onClick={() => setUsers((existing) => existing.map((item) => (item.id === user.id ? { ...item, active: !item.active } : item)))}
-            >
-              {user.active ? 'Deactivate' : 'Activate'}
-            </button>
+          <article className="management-card" key={user.id}>
+            <div className="management-summary">
+              <RecordRow title={user.name} meta={`${user.email} - ${linkedClientLabel(user, customers)}`} status={user.role} />
+              {isAdmin && (
+                <button className="secondary-action" onClick={() => setEditingId(user.id)}>
+                  <Edit3 size={17} />
+                  Edit
+                </button>
+              )}
+            </div>
+            <dl>
+              <dt>Phone</dt><dd>{user.phone || 'Not set'}</dd>
+              <dt>Status</dt><dd>{user.active ? 'Active' : 'Inactive'}</dd>
+              <dt>Linked client</dt><dd>{user.role === 'Client' ? linkedClientLabel(user, customers) : 'None'}</dd>
+              <dt>Notes</dt><dd>{user.notes || 'No notes'}</dd>
+            </dl>
+            {editingId === user.id && (
+              <UserEditForm
+                user={user}
+                users={users}
+                customers={customers}
+                onCancel={() => setEditingId('')}
+                onSave={(editForm) => {
+                  const result = onEditUser(user.id, editForm);
+                  setMessage(result);
+                  if (result.endsWith('saved.')) {
+                    setEditingId('');
+                  }
+                }}
+              />
+            )}
             <AdminPasswordReset user={user} onResetUserPassword={onResetUserPassword} />
-          </div>
+          </article>
         ))}
       </Panel>
+    </div>
+  );
+}
+
+function UserEditForm({ user, users, customers, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    name: user.name || '',
+    email: user.email || '',
+    phone: user.phone || '',
+    role: user.role || 'Client',
+    clientId: user.clientId || customers.find((customer) => customer.code === user.code)?.id || '',
+    active: user.active,
+    notes: user.notes || '',
+  });
+  const activeAdmins = users.filter((item) => item.role === 'Admin' && item.active);
+  const isLastActiveAdmin = user.role === 'Admin' && user.active && activeAdmins.length === 1;
+  const sensitiveAdminChange = user.role === 'Admin' && (form.role !== 'Admin' || !form.active);
+
+  return (
+    <div className="edit-panel">
+      {sensitiveAdminChange && (
+        <p className="warning-message">
+          <AlertTriangle size={17} />
+          Admin role or status changes require confirmation and cannot remove the last active Admin.
+        </p>
+      )}
+      <div className="form-grid">
+        <Input label="Full name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+        <Input label="Email / username" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+        <Input label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+        <label>
+          Role
+          <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, clientId: event.target.value === 'Client' ? form.clientId : '' })}>
+            {roles.map((role) => <option key={role}>{role}</option>)}
+          </select>
+        </label>
+        {form.role === 'Client' && (
+          <label>
+            Linked client/customer
+            <select value={form.clientId} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
+              <option value="">Select client/customer</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name} - {customer.code}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="check-row">
+          <input type="checkbox" checked={form.active} disabled={isLastActiveAdmin} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
+          <span>Active user</span>
+        </label>
+        <label className="span-2">
+          Notes
+          <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+        </label>
+      </div>
+      <p className="muted-copy">Password changes stay separate. Existing passwords are not shown here.</p>
+      <div className="form-actions">
+        <button className="primary-action" disabled={!form.name.trim() || !form.email.trim() || !form.role || (form.role === 'Client' && !form.clientId)} onClick={() => onSave(form)}>
+          <Edit3 size={18} />
+          Save
+        </button>
+        <button className="secondary-action" onClick={onCancel}>
+          <X size={17} />
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -1472,8 +1826,8 @@ function AdminPasswordReset({ user, onResetUserPassword }) {
   const [message, setMessage] = useState('');
   return (
     <div className="password-reset-box">
-      <Input label="New password" type="password" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
-      <Input label="Confirm new password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
+      <Input label="New password" type="password" autoComplete="off" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
+      <Input label="Confirm new password" type="password" autoComplete="off" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
       <button
         className="secondary-action"
         disabled={!form.newPassword || !form.confirmPassword}
@@ -1490,13 +1844,110 @@ function AdminPasswordReset({ user, onResetUserPassword }) {
   );
 }
 
-function Customers({ customers }) {
+function Customers({ customers, containments, onEditCustomer }) {
+  const [editingId, setEditingId] = useState('');
+  const [message, setMessage] = useState('');
   return (
     <Panel title="Customers">
+      <AuthNotice message={message} />
       {customers.map((customer) => (
-        <RecordRow key={customer.id} title={customer.name} meta={`${customer.code} - ${customer.destination} - ${customer.contact}`} status={customer.status} />
+        <article className="management-card" key={customer.id}>
+          <div className="management-summary">
+            <RecordRow title={customer.name} meta={`${customer.code} - ${customer.country || customer.destination} - ${customer.contact}`} status={customer.status} />
+            <button className="secondary-action" onClick={() => setEditingId(customer.id)}>
+              <Edit3 size={17} />
+              Edit
+            </button>
+          </div>
+          <dl>
+            <dt>Company</dt><dd>{customer.companyName || customer.name}</dd>
+            <dt>Email</dt><dd>{customer.email || 'Not set'}</dd>
+            <dt>Phone</dt><dd>{customer.phone || 'Not set'}</dd>
+            <dt>VAT / tax / ID</dt><dd>{customer.taxId || 'Not set'}</dd>
+            <dt>Address</dt><dd>{customer.address || 'Not set'}</dd>
+            <dt>Notes</dt><dd>{customer.notes || 'No notes'}</dd>
+          </dl>
+          {editingId === customer.id && (
+            <CustomerEditForm
+              customer={customer}
+              containments={containments}
+              onCancel={() => setEditingId('')}
+              onSave={(form) => {
+                const codeChanged = form.code.trim().toUpperCase() !== customer.code;
+                const codeUsedInContainments = containments.some((box) => box.number.includes(`-${customer.code}-`) || box.code === customer.code);
+                if (codeChanged && codeUsedInContainments && typeof window !== 'undefined' && !window.confirm(`Client code ${customer.code} is already used in existing containment numbers. Old containment numbers will not be renamed. Save the new client code?`)) {
+                  setMessage('Client edit cancelled.');
+                  return;
+                }
+                setMessage(onEditCustomer(customer.id, form));
+                setEditingId('');
+              }}
+            />
+          )}
+        </article>
       ))}
     </Panel>
+  );
+}
+
+function CustomerEditForm({ customer, containments, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    name: customer.name || '',
+    code: customer.code || '',
+    companyName: customer.companyName || customer.name || '',
+    contact: customer.contact || '',
+    email: customer.email || '',
+    phone: customer.phone || '',
+    address: customer.address || '',
+    country: customer.country || customer.destination || '',
+    taxId: customer.taxId || '',
+    notes: customer.notes || '',
+    active: customer.status !== 'Inactive',
+  });
+  const hasContainmentCode = containments.some((box) => box.number.includes(`-${customer.code}-`) || box.code === customer.code);
+  const codeChanged = form.code.trim().toUpperCase() !== customer.code;
+
+  return (
+    <div className="edit-panel">
+      {codeChanged && hasContainmentCode && (
+        <p className="warning-message">
+          <AlertTriangle size={17} />
+          Existing containment numbers use this client code. Saving will not rename old containment numbers.
+        </p>
+      )}
+      <div className="form-grid">
+        <Input label="Client name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+        <Input label="Client code" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+        <Input label="Company name" value={form.companyName} onChange={(companyName) => setForm({ ...form, companyName })} />
+        <Input label="Contact person" value={form.contact} onChange={(contact) => setForm({ ...form, contact })} />
+        <Input label="Email" type="email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
+        <Input label="Phone number" value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
+        <Input label="Country" value={form.country} onChange={(country) => setForm({ ...form, country })} />
+        <Input label="VAT / tax / ID number" value={form.taxId} onChange={(taxId) => setForm({ ...form, taxId })} />
+        <label className="span-2">
+          Address
+          <textarea value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} />
+        </label>
+        <label className="span-2">
+          Notes
+          <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
+          <span>Active client</span>
+        </label>
+      </div>
+      <div className="form-actions">
+        <button className="primary-action" disabled={!form.name.trim() || !form.code.trim()} onClick={() => onSave(form)}>
+          <Edit3 size={18} />
+          Save
+        </button>
+        <button className="secondary-action" onClick={onCancel}>
+          <X size={17} />
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1520,7 +1971,7 @@ function Customs({ shipments, onUpdateShipmentCustoms }) {
   );
 }
 
-function Containers({ user, containments, shippingContainers, onAddShippingContainer }) {
+function Containers({ user, containments, shippingContainers, onAddShippingContainer, onEditShippingContainer, onDeleteShippingContainer }) {
   const [form, setForm] = useState({
     number: '',
     sealNumber: '',
@@ -1552,7 +2003,7 @@ function Containers({ user, containments, shippingContainers, onAddShippingConta
             <label>
               Status
               <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-                {['Created', 'Loading', 'Loaded', 'In transit', 'Closed', 'Cleared', 'Unloaded'].map((status) => <option key={status}>{status}</option>)}
+                {allContainerStatuses.map((status) => <option key={status}>{status}</option>)}
               </select>
             </label>
             <label>
@@ -1575,17 +2026,115 @@ function Containers({ user, containments, shippingContainers, onAddShippingConta
       )}
       <Panel title="Shipping Containers">
         {shippingContainers.map((container) => (
-          <RecordRow
+          <ContainerManagementCard
             key={container.id}
-            title={container.number}
-            meta={`${container.originPort} to ${container.destinationPort} - ${container.carrier || 'Carrier TBC'} - ${container.containments} containments - ETA ${container.eta || 'TBC'}`}
-            status={container.status}
+            container={container}
+            assignedContainments={containments.filter((box) => box.container === container.number)}
+            canManage={canManage}
+            onEditShippingContainer={onEditShippingContainer}
+            onDeleteShippingContainer={onDeleteShippingContainer}
           />
         ))}
         {containments.filter((box) => box.container !== 'Pending').map((box) => (
           <RecordRow key={box.number} title={box.container} meta={`${box.number} - ${box.client} - ${box.destination}`} status={box.status} />
         ))}
       </Panel>
+    </div>
+  );
+}
+
+function ContainerManagementCard({ container, assignedContainments, canManage, onEditShippingContainer, onDeleteShippingContainer }) {
+  const [editing, setEditing] = useState(false);
+  const [message, setMessage] = useState('');
+
+  return (
+    <article className="management-card">
+      <AuthNotice message={message} />
+      <div className="management-summary">
+        <RecordRow
+          title={container.number}
+          meta={`${container.originPort || 'Origin TBC'} to ${container.destinationPort || 'Destination TBC'} - ${container.carrier || 'Carrier TBC'} - ${assignedContainments.length || container.containments || 0} containments - ETA ${container.eta || 'TBC'}`}
+          status={container.status}
+        />
+        {canManage && (
+          <div className="row-actions">
+            <button className="secondary-action" onClick={() => setEditing(true)}>
+              <Edit3 size={17} />
+              Edit
+            </button>
+            <button className="danger-action" onClick={() => setMessage(onDeleteShippingContainer(container.id))}>
+              <Trash2 size={17} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+      <dl>
+        <dt>Seal</dt><dd>{container.sealNumber || 'Not set'}</dd>
+        <dt>Vessel / truck</dt><dd>{container.vessel || 'Not set'}</dd>
+        <dt>Departure</dt><dd>{container.departureDate || 'TBC'}</dd>
+        <dt>Notes</dt><dd>{container.notes || 'No notes'}</dd>
+      </dl>
+      {editing && (
+        <ContainerEditForm
+          container={container}
+          onCancel={() => setEditing(false)}
+          onSave={(form) => {
+            setMessage(onEditShippingContainer(container.id, form));
+            setEditing(false);
+          }}
+        />
+      )}
+    </article>
+  );
+}
+
+function ContainerEditForm({ container, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    number: container.number || '',
+    sealNumber: container.sealNumber || '',
+    carrier: container.carrier || '',
+    vessel: container.vessel || '',
+    originPort: container.originPort || '',
+    destinationPort: container.destinationPort || '',
+    departureDate: container.departureDate || '',
+    eta: container.eta || '',
+    status: container.status || 'Created',
+    notes: container.notes || '',
+  });
+
+  return (
+    <div className="edit-panel">
+      <div className="form-grid">
+        <Input label="Container number" value={form.number} onChange={(number) => setForm({ ...form, number })} />
+        <Input label="Seal number" value={form.sealNumber} onChange={(sealNumber) => setForm({ ...form, sealNumber })} />
+        <Input label="Shipping line / carrier" value={form.carrier} onChange={(carrier) => setForm({ ...form, carrier })} />
+        <Input label="Vessel name or truck reference" value={form.vessel} onChange={(vessel) => setForm({ ...form, vessel })} />
+        <Input label="Origin port" value={form.originPort} onChange={(originPort) => setForm({ ...form, originPort })} />
+        <Input label="Destination port" value={form.destinationPort} onChange={(destinationPort) => setForm({ ...form, destinationPort })} />
+        <Input label="Departure date" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
+        <Input label="ETA" type="date" value={form.eta} onChange={(eta) => setForm({ ...form, eta })} />
+        <label>
+          Status
+          <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+            {allContainerStatuses.map((status) => <option key={status}>{status}</option>)}
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+        </label>
+      </div>
+      <div className="form-actions">
+        <button className="primary-action" disabled={!form.number.trim()} onClick={() => onSave(form)}>
+          <Edit3 size={18} />
+          Save
+        </button>
+        <button className="secondary-action" onClick={onCancel}>
+          <X size={17} />
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -1621,9 +2170,9 @@ function ProfilePage({ user, onChangeOwnPassword }) {
       <Panel title="Change Password">
         <AuthNotice message={message} />
         <div className="form-grid">
-          <Input label="Current password" type="password" value={form.currentPassword} onChange={(currentPassword) => setForm({ ...form, currentPassword })} />
-          <Input label="New password" type="password" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
-          <Input label="Confirm new password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
+          <Input label="Current password" type="password" autoComplete="off" value={form.currentPassword} onChange={(currentPassword) => setForm({ ...form, currentPassword })} />
+          <Input label="New password" type="password" autoComplete="off" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
+          <Input label="Confirm new password" type="password" autoComplete="off" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
         </div>
         <button
           className="primary-action"
@@ -1745,11 +2294,11 @@ function Status({ label }) {
   return <span className={`status ${statusTone[label] || 'neutral'}`}>{label}</span>;
 }
 
-function Input({ label, value, onChange, type = 'text' }) {
+function Input({ label, value, onChange, type = 'text', autoComplete }) {
   return (
     <label>
       {label}
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type={type} autoComplete={autoComplete} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -1764,12 +2313,50 @@ function scopeRecords(user, shipments, parcels, containments, documents, payment
   const shipmentIds = clientShipments.map((shipment) => shipment.id);
   return {
     shipments: clientShipments,
-    parcels: parcels.filter((parcel) => parcel.client === user.name),
+    parcels: parcels.filter((parcel) => parcel.client === user.name || shipmentIds.includes(parcel.shipment)),
     containments: containments.filter((box) => box.client === user.name || box.code === user.code),
     documents: documents.filter((document) => document.owner === user.name || shipmentIds.includes(document.shipment)),
     payments: payments.filter((payment) => payment.customer === user.name || shipmentIds.includes(payment.shipment)),
     trackingEvents: trackingEvents.filter((event) => shipmentIds.includes(event.shipment)),
   };
+}
+
+function normalizeCustomer(customer) {
+  const country = customer.country || customer.destination || '';
+  return {
+    id: customer.id,
+    name: customer.name || customer.companyName || 'Unnamed client',
+    code: String(customer.code || createClientCode(customer.name || customer.companyName || 'NEW')).toUpperCase(),
+    companyName: customer.companyName || customer.name || '',
+    contact: customer.contact || '',
+    email: customer.email || '',
+    phone: customer.phone || '',
+    address: customer.address || '',
+    country,
+    destination: country,
+    taxId: customer.taxId || customer.vat || customer.taxNumber || '',
+    notes: customer.notes || '',
+    status: customer.status === 'Inactive' ? 'Inactive' : customer.status || 'Active',
+  };
+}
+
+function releaseParcelFromContainment(parcel, containmentNumber) {
+  const assignedByField = parcel.containment === containmentNumber || parcel.containmentNumber === containmentNumber;
+  const assignedByNotes = typeof parcel.notes === 'string' && parcel.notes.includes(containmentNumber);
+  if (!assignedByField && !assignedByNotes) return parcel;
+  return {
+    ...parcel,
+    containment: '',
+    containmentNumber: '',
+    status: parcel.payment && parcel.invoice ? 'Ready for packing' : 'Received',
+    notes: `Released from deleted containment ${containmentNumber}.`,
+  };
+}
+
+function restoredContainmentStatus(box) {
+  if (box.status === 'Closed') return 'Closed';
+  if (box.closed && box.closed !== 'Not closed') return 'Locked';
+  return 'Closed';
 }
 
 function mapIdentityUser(identityUser, localUsers) {
@@ -1784,10 +2371,21 @@ function mapIdentityUser(identityUser, localUsers) {
     id: identityUser.id,
     name: String(name),
     email: identityUser.email || matchedUser?.email || '',
+    phone: metadata.phone || matchedUser?.phone || '',
     role,
     active: true,
     code: String(code).toUpperCase(),
+    clientId: matchedUser?.clientId || '',
+    notes: matchedUser?.notes || '',
   };
+}
+
+function linkedClientLabel(user, customers) {
+  const linked = customers.find((customer) => customer.id === user.clientId || customer.code === user.code);
+  if (user.role === 'Client') {
+    return linked ? `${linked.name} - ${linked.code}` : user.code || 'No linked client';
+  }
+  return user.code || 'No code';
 }
 
 function resolveRole(identityUser, matchedUser) {

@@ -165,7 +165,8 @@ textarea:focus {
 .primary-action,
 .secondary-action,
 .text-action,
-.icon-button {
+.icon-button,
+.danger-action {
   border: 0;
   border-radius: 8px;
   min-height: 42px;
@@ -188,6 +189,15 @@ textarea:focus {
   color: var(--blue-900);
   padding: 0 14px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.danger-action {
+  background: #ffe9e5;
+  color: var(--red);
+  border: 1px solid #ffc2b8;
+  padding: 0 14px;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -651,6 +661,61 @@ th {
   gap: 14px;
 }
 
+.management-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.management-card:first-of-type {
+  border-top: 0;
+}
+
+.management-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.management-summary .record-row {
+  flex: 1 1 auto;
+  border-top: 0;
+  padding: 0;
+}
+
+.row-actions,
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.edit-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 14px;
+}
+
+.warning-message {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 0;
+  border: 1px solid #ffd3c4;
+  border-radius: 8px;
+  background: #fff6f2;
+  color: var(--blue-950);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .parcel-actions,
 .label-actions,
 .customs-actions {
@@ -705,9 +770,15 @@ dd {
 
 .label-head {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: minmax(60px, 92px) 1fr;
   gap: 12px;
   align-items: center;
+}
+
+.label-head img {
+  width: min(92px, 100%);
+  max-width: 92px;
+  justify-self: start;
 }
 
 .barcode {
@@ -865,8 +936,63 @@ dd {
 
   .parcel-actions,
   .label-actions,
-  .customs-actions {
+  .customs-actions,
+  .management-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .row-actions,
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .danger-action {
+    width: 100%;
+  }
+
+  .label-head {
+    grid-template-columns: 64px 1fr;
+  }
+
+  .label-head img {
+    max-width: 64px;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .sidebar,
+  .topbar,
+  .panel,
+  .label-actions {
+    display: none !important;
+  }
+
+  .app-shell,
+  .workspace,
+  .content,
+  .containment-grid {
+    display: block;
+    padding: 0;
+  }
+
+  .label-preview {
+    break-inside: avoid;
+    box-shadow: none;
+    margin: 0 0 12mm;
+    border-color: #0b2e5f;
+  }
+
+  .label-head {
+    grid-template-columns: 80px 1fr;
+  }
+
+  .label-head img {
+    max-width: 80px;
   }
 }
