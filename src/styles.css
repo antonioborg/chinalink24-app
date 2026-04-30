@@ -217,6 +217,11 @@ textarea:focus {
   font-weight: 700;
 }
 
+.muted-copy {
+  margin: 0;
+  color: var(--muted);
+}
+
 .recovery-box {
   margin-top: 14px;
   padding-top: 14px;
@@ -439,6 +444,15 @@ textarea:focus {
   border-top: 1px solid var(--line);
 }
 
+.user-row {
+  flex-wrap: wrap;
+}
+
+.user-row > .record-row {
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+
 .record-row:first-of-type,
 .receiving-row:first-of-type,
 .user-row:first-of-type {
@@ -486,6 +500,70 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.generated-number,
+.available-parcels,
+.check-list,
+.password-reset-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 12px;
+}
+
+.generated-number span,
+.available-parcels span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.generated-number strong,
+.available-parcels strong {
+  display: block;
+  color: var(--blue-950);
+}
+
+.available-parcels {
+  margin-top: 16px;
+}
+
+.assignment-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(280px, 1.2fr);
+  gap: 16px;
+}
+
+.check-list {
+  display: grid;
+  gap: 10px;
+}
+
+.check-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 800;
+}
+
+.check-row input {
+  width: 18px;
+  min-height: 18px;
+  accent-color: var(--orange);
+}
+
+.password-reset-box {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  flex: 1 1 100%;
+}
+
+.password-reset-box .auth-message {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .shipment-add-grid {
@@ -712,7 +790,9 @@ dd {
   .dashboard-grid,
   .card-grid,
   .containment-grid,
+  .assignment-grid,
   .inline-add,
+  .password-reset-box,
   .customs-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -735,7 +815,9 @@ dd {
   .dashboard-grid,
   .card-grid,
   .containment-grid,
+  .assignment-grid,
   .inline-add,
+  .password-reset-box,
   .customs-row {
     grid-template-columns: 1fr;
   }

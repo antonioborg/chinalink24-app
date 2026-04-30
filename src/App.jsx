@@ -21,6 +21,7 @@ import {
   Container,
   CreditCard,
   FileText,
+  KeyRound,
   LayoutDashboard,
   Lock,
   LogOut,
@@ -34,6 +35,7 @@ import {
   ShieldCheck,
   Truck,
   UploadCloud,
+  UserCog,
   UserPlus,
   Users,
 } from 'lucide-react';
@@ -44,11 +46,11 @@ const useMockAuth = true;
 // Backend integration point: replace these session-scoped mocks with API calls
 // backed by Netlify Functions and a server-side PostgreSQL connection.
 const demoUsers = [
-  { id: 1, name: 'Mina Zhang', email: 'admin@chinalink24.com', role: 'Admin', active: true, code: 'HQ' },
-  { id: 2, name: 'David Mensah', email: 'staff@chinalink24.com', role: 'Staff', active: true, code: 'OPS' },
-  { id: 3, name: 'Lin Wei', email: 'warehouse@chinalink24.com', role: 'Warehouse staff', active: true, code: 'WH' },
-  { id: 4, name: 'Amara Okafor', email: 'customs@chinalink24.com', role: 'Customs staff', active: true, code: 'CUS' },
-  { id: 5, name: 'TechNova Imports', email: 'client@technova.example', role: 'Client', active: true, code: 'TECH' },
+  { id: 1, name: 'Mina Zhang', email: 'admin@chinalink24.com', role: 'Admin', active: true, code: 'HQ', password: 'demo1234' },
+  { id: 2, name: 'David Mensah', email: 'staff@chinalink24.com', role: 'Staff', active: true, code: 'OPS', password: 'demo1234' },
+  { id: 3, name: 'Lin Wei', email: 'warehouse@chinalink24.com', role: 'Warehouse staff', active: true, code: 'WH', password: 'demo1234' },
+  { id: 4, name: 'Amara Okafor', email: 'customs@chinalink24.com', role: 'Customs staff', active: true, code: 'CUS', password: 'demo1234' },
+  { id: 5, name: 'TechNova Imports', email: 'client@technova.example', role: 'Client', active: true, code: 'TECH', password: 'demo1234' },
 ];
 
 const initialCustomers = [
@@ -103,8 +105,16 @@ const initialParcels = [
 const initialContainments = [
   {
     number: 'CL24-TECH-0001',
+    name: 'Standard Box',
     client: 'TechNova Imports',
+    clientId: 'CUS-001',
     code: 'TECH',
+    boxTypeId: 'BOX-STD',
+    boxTypeName: 'Standard Box',
+    width: 60,
+    height: 50,
+    length: 90,
+    unit: 'cm',
     status: 'Packing in progress',
     parcels: 2,
     weight: '12.2 kg',
@@ -114,8 +124,16 @@ const initialContainments = [
   },
   {
     number: 'CL24-BHR-0001',
+    name: 'Standard Box',
     client: 'Blue Harbor Retail',
+    clientId: 'CUS-002',
     code: 'BHR',
+    boxTypeId: 'BOX-STD',
+    boxTypeName: 'Standard Box',
+    width: 60,
+    height: 50,
+    length: 90,
+    unit: 'cm',
     status: 'Locked',
     parcels: 9,
     weight: '86.7 kg',
@@ -126,9 +144,15 @@ const initialContainments = [
 ];
 
 const initialShippingContainers = [
-  { id: 'CMAU-482913-7', route: 'Shenzhen to Tema', destination: 'Ghana', status: 'Ocean freight', containments: 6, eta: '2026-05-18' },
-  { id: 'MSCU-771204-3', route: 'Ningbo to Lagos', destination: 'Nigeria', status: 'Loading', containments: 4, eta: '2026-05-22' },
-  { id: 'OOLU-319872-6', route: 'Shanghai to Mombasa', destination: 'Kenya', status: 'Port arrival', containments: 3, eta: '2026-05-09' },
+  { id: 'CMAU-482913-7', number: 'CMAU-482913-7', sealNumber: 'SL-48922', carrier: 'CMA CGM', vessel: 'CMA Grandeur', originPort: 'Shenzhen', destinationPort: 'Tema', destination: 'Ghana', status: 'In transit', containments: 6, eta: '2026-05-18', departureDate: '2026-04-26', notes: 'Ocean freight' },
+  { id: 'MSCU-771204-3', number: 'MSCU-771204-3', sealNumber: 'SL-77144', carrier: 'MSC', vessel: 'MSC Jasmine', originPort: 'Ningbo', destinationPort: 'Lagos', destination: 'Nigeria', status: 'Loading', containments: 4, eta: '2026-05-22', departureDate: '2026-05-02', notes: 'Loading at warehouse' },
+  { id: 'OOLU-319872-6', number: 'OOLU-319872-6', sealNumber: 'SL-31877', carrier: 'OOCL', vessel: 'OOCL Horizon', originPort: 'Shanghai', destinationPort: 'Mombasa', destination: 'Kenya', status: 'Closed', containments: 3, eta: '2026-05-09', departureDate: '2026-04-18', notes: 'Port arrival' },
+];
+
+const initialContainmentSizes = [
+  { id: 'BOX-STD', name: 'Standard Box', width: 60, height: 50, length: 90, unit: 'cm', maxWeight: '', active: true, default: true, notes: 'Default ChinaLink24 export carton' },
+  { id: 'BOX-LRG', name: 'Large Box', width: 80, height: 60, length: 110, unit: 'cm', maxWeight: '120 kg', active: true, default: false, notes: 'Oversized parcel consolidation' },
+  { id: 'BOX-SML', name: 'Small Box', width: 45, height: 35, length: 55, unit: 'cm', maxWeight: '45 kg', active: true, default: false, notes: 'Small mixed parcel runs' },
 ];
 
 const initialDocuments = [
@@ -161,9 +185,10 @@ const navItems = [
   { id: 'customs', label: 'Customs Clearance', icon: ShieldCheck, roles: ['Admin', 'Staff', 'Customs staff', 'Client'] },
   { id: 'documents', label: 'Documents', icon: FileText, roles: roles },
   { id: 'payments', label: 'Payments', icon: CreditCard, roles: roles },
+  { id: 'profile', label: 'Profile', icon: UserCog, roles: roles },
   { id: 'users', label: 'Users', icon: UserPlus, roles: ['Admin'] },
   { id: 'reports', label: 'Reports', icon: BarChart3, roles: ['Admin', 'Staff'] },
-  { id: 'settings', label: 'Settings', icon: Settings, roles: ['Admin'] },
+  { id: 'settings', label: 'Settings', icon: Settings, roles: ['Admin', 'Staff'] },
 ];
 
 const statusTone = {
@@ -180,6 +205,8 @@ const statusTone = {
   'Waiting for parcel tracking numbers': 'neutral',
   'Customs cleared': 'green',
   Active: 'green',
+  Default: 'blue',
+  Inactive: 'neutral',
   Open: 'amber',
   Ready: 'blue',
   'Customs review': 'red',
@@ -189,30 +216,81 @@ const statusTone = {
   'Cleared for packing': 'green',
   'Proof uploaded': 'blue',
   'Ocean freight': 'blue',
+  Created: 'blue',
   Loading: 'amber',
+  Loaded: 'green',
+  'In transit': 'blue',
+  Closed: 'neutral',
+  Cleared: 'green',
+  Unloaded: 'neutral',
   'Port arrival': 'red',
 };
 
+const availableContainerStatuses = ['Created', 'Loading', 'Loaded', 'In transit'];
+const mockStateKey = 'chinalink24_mock_state_v2';
+
+function createInitialMockState() {
+  return {
+    users: demoUsers,
+    customers: initialCustomers,
+    shipments: initialShipments,
+    parcels: initialParcels,
+    containmentSizes: initialContainmentSizes,
+    containments: initialContainments,
+    shippingContainers: initialShippingContainers,
+  };
+}
+
+function loadMockState() {
+  if (typeof window === 'undefined') return createInitialMockState();
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(mockStateKey) || 'null');
+    if (!parsed) return createInitialMockState();
+    return {
+      ...createInitialMockState(),
+      ...parsed,
+      users: (parsed.users || demoUsers).map((user) => ({ password: 'demo1234', ...user })),
+      containmentSizes: parsed.containmentSizes || initialContainmentSizes,
+      shippingContainers: parsed.shippingContainers || initialShippingContainers,
+    };
+  } catch {
+    return createInitialMockState();
+  }
+}
+
 function App() {
+  const [mockState] = useState(loadMockState);
   const [screen, setScreen] = useState('login');
-  const [users, setUsers] = useState(demoUsers);
+  const [users, setUsers] = useState(mockState.users);
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState('');
   const [authSettings, setAuthSettings] = useState({ disableSignup: false });
   const [inviteToken, setInviteToken] = useState('');
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [shipments, setShipments] = useState(initialShipments);
-  const [parcels, setParcels] = useState(initialParcels);
-  const [containments, setContainments] = useState(initialContainments);
-  const [customers] = useState(initialCustomers);
-  const [shippingContainers] = useState(initialShippingContainers);
+  const [shipments, setShipments] = useState(mockState.shipments);
+  const [parcels, setParcels] = useState(mockState.parcels);
+  const [containments, setContainments] = useState(mockState.containments);
+  const [customers, setCustomers] = useState(mockState.customers);
+  const [containmentSizes, setContainmentSizes] = useState(mockState.containmentSizes);
+  const [shippingContainers, setShippingContainers] = useState(mockState.shippingContainers);
   const [documents] = useState(initialDocuments);
   const [payments] = useState(initialPayments);
   const [trackingEvents] = useState(initialTrackingEvents);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const scoped = useMemo(() => scopeRecords(currentUser, shipments, parcels, containments), [currentUser, shipments, parcels, containments]);
+  const scoped = useMemo(
+    () => scopeRecords(currentUser, shipments, parcels, containments, documents, payments, trackingEvents),
+    [currentUser, shipments, parcels, containments, documents, payments, trackingEvents],
+  );
+
+  useEffect(() => {
+    if (!useMockAuth || typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      mockStateKey,
+      JSON.stringify({ users, customers, shipments, parcels, containmentSizes, containments, shippingContainers }),
+    );
+  }, [users, customers, shipments, parcels, containmentSizes, containments, shippingContainers]);
 
   useEffect(() => {
     if (useMockAuth) {
@@ -293,8 +371,8 @@ function App() {
     setAuthMessage('');
     if (useMockAuth) {
       const user = users.find((item) => item.active && item.email.toLowerCase() === credentials.email.toLowerCase());
-      if (!user) {
-        setAuthMessage('Choose one of the available mock accounts.');
+      if (!user || user.password !== credentials.password) {
+        setAuthMessage('Invalid email or password.');
         return;
       }
       setCurrentUser(user);
@@ -325,10 +403,15 @@ function App() {
       role: 'Client',
       active: true,
       code: code || 'NEW',
+      password: profile.password,
     };
     setAuthMessage('');
     if (useMockAuth) {
       setUsers((existing) => [...existing.filter((user) => user.email !== newUser.email), newUser]);
+      setCustomers((existing) => [
+        ...existing.filter((customer) => customer.code !== newUser.code),
+        { id: `CUS-${Date.now()}`, name: newUser.name, code: newUser.code, destination: profile.country, contact: profile.contact, status: 'Active' },
+      ]);
       setCurrentUser(newUser);
       setScreen('app');
       setActiveSection('shipments');
@@ -481,17 +564,58 @@ function App() {
   }
 
   function addUser(form) {
+    const newUser = {
+      id: Date.now(),
+      name: form.name,
+      email: form.email,
+      role: form.role,
+      active: true,
+      code: form.code.toUpperCase(),
+      password: form.password,
+    };
     setUsers((existing) => [
       ...existing,
-      {
-        id: Date.now(),
-        name: form.name,
-        email: form.email,
-        role: form.role,
-        active: true,
-        code: form.code.toUpperCase(),
-      },
+      newUser,
     ]);
+    if (newUser.role === 'Client') {
+      setCustomers((existing) => [
+        ...existing.filter((customer) => customer.code !== newUser.code),
+        { id: `CUS-${newUser.id}`, name: newUser.name, code: newUser.code, destination: 'Pending', contact: newUser.name, status: 'Active' },
+      ]);
+    }
+  }
+
+  async function changeOwnPassword(form) {
+    setAuthMessage('');
+    const validation = validatePasswordChange(form.newPassword, form.confirmPassword);
+    if (validation) return validation;
+
+    if (useMockAuth) {
+      const user = users.find((item) => item.id === currentUser.id);
+      if (!user || user.password !== form.currentPassword) return 'Current password is incorrect.';
+      const updatedUser = { ...user, password: form.newPassword };
+      setUsers((existing) => existing.map((item) => (item.id === user.id ? updatedUser : item)));
+      setCurrentUser(updatedUser);
+      return 'Password updated successfully.';
+    }
+
+    try {
+      const identityUser = await updateUser({ password: form.newPassword });
+      enterAuthenticatedApp(identityUser, 'profile');
+      return 'Password updated successfully.';
+    } catch (error) {
+      return toAuthMessage(error);
+    }
+  }
+
+  function resetUserPassword(userId, form) {
+    const validation = validatePasswordChange(form.newPassword, form.confirmPassword);
+    if (validation) return validation;
+    setUsers((existing) => existing.map((user) => (user.id === userId ? { ...user, password: form.newPassword } : user)));
+    if (currentUser?.id === userId) {
+      setCurrentUser((existing) => (existing ? { ...existing, password: form.newPassword } : existing));
+    }
+    return 'Password reset successfully.';
   }
 
   function receiveParcel(tracking) {
@@ -524,25 +648,42 @@ function App() {
     );
   }
 
-  function openContainment() {
-    const code = currentUser.role === 'Client' ? currentUser.code : 'TECH';
-    const client = currentUser.role === 'Client' ? currentUser.name : 'TechNova Imports';
+  function openContainment(form = {}) {
+    if (currentUser.role !== 'Client' && !form.clientId) {
+      setActiveSection('packing');
+      return 'Select a client before opening a containment.';
+    }
+    const clientRecord = currentUser.role === 'Client'
+      ? customers.find((customer) => customer.code === currentUser.code) || { id: currentUser.id, name: currentUser.name, code: currentUser.code, destination: 'Pending' }
+      : customers.find((customer) => customer.id === form.clientId);
+    const boxType = containmentSizes.find((size) => size.id === form.boxTypeId) || containmentSizes.find((size) => size.default && size.active);
+    if (!clientRecord || !boxType) return 'Select a client and active box type before opening a containment.';
+    const code = clientRecord.code;
     const next = String(containments.filter((box) => box.code === code).length + 1).padStart(4, '0');
     setContainments((existing) => [
       {
         number: `CL24-${code}-${next}`,
-        client,
+        name: form.name || boxType.name,
+        client: clientRecord.name,
+        clientId: clientRecord.id,
         code,
+        boxTypeId: boxType.id,
+        boxTypeName: boxType.name,
+        width: Number(boxType.width),
+        height: Number(boxType.height),
+        length: Number(boxType.length),
+        unit: boxType.unit || 'cm',
         status: 'Open',
         parcels: 0,
         weight: '0 kg',
-        destination: 'Pending',
+        destination: clientRecord.destination || 'Pending',
         container: 'Pending',
         closed: 'Not closed',
       },
       ...existing,
     ]);
     setActiveSection('packing');
+    return `Containment CL24-${code}-${next} opened for ${clientRecord.name}.`;
   }
 
   function closeContainment(number) {
@@ -559,18 +700,88 @@ function App() {
     );
   }
 
-  function assignContainer(number) {
+  function assignContainer(numbers, containerNumber) {
+    const selectedNumbers = Array.isArray(numbers) ? numbers : [numbers];
+    const container = shippingContainers.find((item) => item.number === containerNumber || item.id === containerNumber);
+    if (!container || !availableContainerStatuses.includes(container.status)) return 'Select an available shipping container.';
+    const assignable = containments.filter((box) => selectedNumbers.includes(box.number) && ['Locked', 'Closed'].includes(box.status));
+    if (!assignable.length) return 'Select at least one locked containment.';
     setContainments((existing) =>
-      existing.map((box, index) =>
-        box.number === number
+      existing.map((box) =>
+        selectedNumbers.includes(box.number)
           ? {
               ...box,
-              container: box.container === 'Pending' ? `CMAU-48291${index}-7` : box.container,
-              status: box.status === 'Open' ? 'Packing in progress' : box.status,
+              container: container.number,
             }
           : box,
       ),
     );
+    setShippingContainers((existing) =>
+      existing.map((item) =>
+        item.id === container.id
+          ? { ...item, containments: containments.filter((box) => box.container === item.number).length + assignable.length }
+          : item,
+      ),
+    );
+    return `${assignable.length} containment${assignable.length === 1 ? '' : 's'} assigned to ${container.number}.`;
+  }
+
+  function addShippingContainer(form) {
+    const number = form.number.trim().toUpperCase();
+    if (!number) return 'Container number is required.';
+    if (shippingContainers.some((container) => container.number === number)) return 'A container with this number already exists.';
+    setShippingContainers((existing) => [
+      {
+        id: number,
+        number,
+        sealNumber: form.sealNumber,
+        carrier: form.carrier,
+        vessel: form.vessel,
+        originPort: form.originPort,
+        destinationPort: form.destinationPort,
+        destination: form.destinationPort,
+        departureDate: form.departureDate,
+        eta: form.eta,
+        status: form.status || 'Created',
+        notes: form.notes,
+        containments: 0,
+      },
+      ...existing,
+    ]);
+    return `Shipping container ${number} created.`;
+  }
+
+  function saveContainmentSize(form) {
+    const validation = validateContainmentSize(form);
+    if (validation) return validation;
+    const id = form.id || `BOX-${Date.now()}`;
+    const saved = {
+      id,
+      name: form.name.trim(),
+      width: Number(form.width),
+      height: Number(form.height),
+      length: Number(form.length),
+      unit: form.unit || 'cm',
+      maxWeight: form.maxWeight,
+      active: Boolean(form.active),
+      default: Boolean(form.default),
+      notes: form.notes,
+    };
+    setContainmentSizes((existing) => {
+      const next = existing.some((size) => size.id === id)
+        ? existing.map((size) => (size.id === id ? saved : size))
+        : [saved, ...existing];
+      return saved.default ? next.map((size) => ({ ...size, default: size.id === id })) : next;
+    });
+    return `${saved.name} saved.`;
+  }
+
+  function toggleContainmentSize(id) {
+    setContainmentSizes((existing) => existing.map((size) => (size.id === id ? { ...size, active: !size.active, default: size.default && !size.active } : size)));
+  }
+
+  function setDefaultContainmentSize(id) {
+    setContainmentSizes((existing) => existing.map((size) => ({ ...size, default: size.id === id, active: size.id === id ? true : size.active })));
   }
 
   function updateShipmentCustoms(shipmentId, customs) {
@@ -607,7 +818,6 @@ function App() {
   if (!currentUser) {
     return (
       <LoginView
-        users={users}
         message={authMessage}
         registrationDisabled={authSettings.disableSignup}
         onLogin={handleLogin}
@@ -676,13 +886,14 @@ function App() {
             user={currentUser}
             users={users}
             customers={customers}
+            containmentSizes={containmentSizes}
             shipments={scoped.shipments}
             parcels={scoped.parcels}
             containments={scoped.containments}
-            shippingContainers={shippingContainers}
-            documents={documents}
-            payments={payments}
-            trackingEvents={trackingEvents}
+            shippingContainers={currentUser.role === 'Client' ? shippingContainers.filter((container) => scoped.containments.some((box) => box.container === container.number)) : shippingContainers}
+            documents={scoped.documents}
+            payments={scoped.payments}
+            trackingEvents={scoped.trackingEvents}
             onCreateShipment={createShipment}
             onAddParcelToShipment={addParcelToShipment}
             onAddUser={addUser}
@@ -691,6 +902,12 @@ function App() {
             onOpenContainment={openContainment}
             onCloseContainment={closeContainment}
             onAssignContainer={assignContainer}
+            onAddShippingContainer={addShippingContainer}
+            onSaveContainmentSize={saveContainmentSize}
+            onToggleContainmentSize={toggleContainmentSize}
+            onSetDefaultContainmentSize={setDefaultContainmentSize}
+            onChangeOwnPassword={changeOwnPassword}
+            onResetUserPassword={resetUserPassword}
             onUpdateShipmentCustoms={updateShipmentCustoms}
             setUsers={setUsers}
           />
@@ -700,10 +917,9 @@ function App() {
   );
 }
 
-function LoginView({ users, message, registrationDisabled, onLogin, onRegister, onPasswordRecovery }) {
-  const [form, setForm] = useState({ email: users[0].email, password: 'demo1234' });
+function LoginView({ message, registrationDisabled, onLogin, onRegister, onPasswordRecovery }) {
+  const [form, setForm] = useState({ email: '', password: '' });
   const [showRecovery, setShowRecovery] = useState(false);
-  const activeUsers = users.filter((user) => user.active);
   const canSubmit = form.email && form.password;
 
   return (
@@ -721,22 +937,12 @@ function LoginView({ users, message, registrationDisabled, onLogin, onRegister, 
             <h2>Sign in</h2>
             <AuthNotice message={message} />
             <label>
-              Account email
+              Email or username
               <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
             </label>
             <label>
               Password
               <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} />
-            </label>
-            <label>
-              Known account emails
-              <select value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })}>
-                {activeUsers.map((user) => (
-                  <option value={user.email} key={user.id}>
-                    {user.role} - {user.email}
-                  </option>
-                ))}
-              </select>
             </label>
             <button className="primary-action" disabled={!canSubmit} onClick={() => onLogin(form)}>
               <ShieldCheck size={18} />
@@ -867,8 +1073,9 @@ function SectionRouter(props) {
   if (section === 'containers') return <Containers {...props} />;
   if (section === 'documents') return <Documents {...props} />;
   if (section === 'payments') return <Payments {...props} />;
+  if (section === 'profile') return <ProfilePage {...props} />;
   if (section === 'reports') return <SimpleSection title="Reports" icon={BarChart3} lines={['Parcel aging', 'Containment utilization', 'Customs clearance time']} />;
-  return <SimpleSection title="Settings" icon={Settings} lines={['Default containment size: 60 x 50 x 90 cm', 'Role permissions', 'Notification preferences']} />;
+  return <SettingsPage {...props} />;
 }
 
 function Dashboard({ user, shipments, parcels, containments, trackingEvents, onOpenContainment }) {
@@ -1054,15 +1261,69 @@ function Receiving({ parcels, onReceiveParcel }) {
   );
 }
 
-function Packing({ containments, onOpenContainment, onCloseContainment, onAssignContainer }) {
+function Packing({ user, customers, containmentSizes, parcels, containments, shippingContainers, onOpenContainment, onCloseContainment, onAssignContainer }) {
+  const defaultSize = containmentSizes.find((size) => size.default && size.active) || containmentSizes.find((size) => size.active);
+  const clientRecord = user.role === 'Client' ? customers.find((customer) => customer.code === user.code) : null;
+  const [form, setForm] = useState({ clientId: clientRecord?.id || '', boxTypeId: defaultSize?.id || '', name: defaultSize?.name || '' });
+  const [message, setMessage] = useState('');
+  const selectedClient = customers.find((customer) => customer.id === form.clientId);
+  const eligibleParcels = parcels.filter((parcel) => parcel.client === selectedClient?.name && ['Received', 'Ready for packing'].includes(parcel.status));
+  const activeSizes = containmentSizes.filter((size) => size.active);
+
+  function submitOpenContainment() {
+    const result = onOpenContainment(form);
+    setMessage(result);
+  }
+
   return (
     <div className="section-stack">
-      <div className="toolbar-row">
-        <button className="primary-action" onClick={onOpenContainment}>
+      <Panel title="Open New Containment">
+        <AuthNotice message={message} />
+        <div className="form-grid">
+          <label>
+            Client
+            <select value={form.clientId} disabled={user.role === 'Client'} onChange={(event) => setForm({ ...form, clientId: event.target.value })}>
+              <option value="">Select client</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name} - {customer.code}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Box type
+            <select
+              value={form.boxTypeId}
+              onChange={(event) => {
+                const size = containmentSizes.find((item) => item.id === event.target.value);
+                setForm({ ...form, boxTypeId: event.target.value, name: size?.name || form.name });
+              }}
+            >
+              <option value="">Select box type</option>
+              {activeSizes.map((size) => (
+                <option key={size.id} value={size.id}>
+                  {size.name} - {size.width} x {size.height} x {size.length} {size.unit}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Input label="Containment name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+          <div className="generated-number">
+            <span>Next number</span>
+            <strong>{selectedClient ? `CL24-${selectedClient.code}-${String(containments.filter((box) => box.code === selectedClient.code).length + 1).padStart(4, '0')}` : 'Select a client'}</strong>
+          </div>
+        </div>
+        <div className="available-parcels">
+          <strong>Available parcels for selected client</strong>
+          <span>{eligibleParcels.length ? eligibleParcels.map((parcel) => parcel.tracking).join(', ') : 'No received or ready parcels available.'}</span>
+        </div>
+        <button className="primary-action" disabled={!form.clientId || !form.boxTypeId || !form.name} onClick={submitOpenContainment}>
           <Archive size={18} />
-          Open new box
+          Open new containment
         </button>
-      </div>
+      </Panel>
+      <AssignContainmentsPanel containments={containments} shippingContainers={shippingContainers} onAssignContainer={onAssignContainer} />
       <div className="containment-grid">
         {containments.map((box) => (
           <article className="label-preview" key={box.number}>
@@ -1070,13 +1331,14 @@ function Packing({ containments, onOpenContainment, onCloseContainment, onAssign
               <img src="/chinalink24-app.svg" alt="" />
               <div>
                 <strong>{box.number}</strong>
-                <span>{box.client}</span>
+                <span>{box.client} - {box.name}</span>
               </div>
             </div>
             <div className="barcode"><ScanLine size={54} /></div>
             <dl>
               <dt>Client code</dt><dd>{box.code}</dd>
-              <dt>Box size</dt><dd>60 x 50 x 90 cm</dd>
+              <dt>Box type</dt><dd>{box.boxTypeName}</dd>
+              <dt>Box size</dt><dd>{box.width} x {box.height} x {box.length} {box.unit}</dd>
               <dt>Parcel count</dt><dd>{box.parcels}</dd>
               <dt>Total weight</dt><dd>{box.weight}</dd>
               <dt>Date closed</dt><dd>{box.closed}</dd>
@@ -1089,10 +1351,6 @@ function Packing({ containments, onOpenContainment, onCloseContainment, onAssign
                 <Lock size={17} />
                 Close box
               </button>
-              <button className="secondary-action" onClick={() => onAssignContainer(box.number)}>
-                <Container size={17} />
-                Assign container
-              </button>
             </div>
           </article>
         ))}
@@ -1101,11 +1359,64 @@ function Packing({ containments, onOpenContainment, onCloseContainment, onAssign
   );
 }
 
-function UsersPage({ users, onAddUser, setUsers }) {
-  const [form, setForm] = useState({ name: '', email: '', role: 'Client', code: '' });
+function AssignContainmentsPanel({ containments, shippingContainers, onAssignContainer }) {
+  const availableContainers = shippingContainers.filter((container) => availableContainerStatuses.includes(container.status));
+  const assignableContainments = containments.filter((box) => box.status === 'Locked');
+  const [containerNumber, setContainerNumber] = useState(availableContainers[0]?.number || '');
+  const [selected, setSelected] = useState([]);
+  const [message, setMessage] = useState('');
+
+  function toggle(number) {
+    setSelected((existing) => (existing.includes(number) ? existing.filter((item) => item !== number) : [...existing, number]));
+  }
+
+  return (
+    <Panel title="Assign Containments to Shipping Container">
+      <AuthNotice message={message} />
+      <div className="assignment-grid">
+        <label>
+          Available shipping container
+          <select value={containerNumber} onChange={(event) => setContainerNumber(event.target.value)}>
+            <option value="">Select container</option>
+            {availableContainers.map((container) => (
+              <option key={container.id} value={container.number}>
+                {container.number} - {container.status} - {container.destinationPort} - ETA {container.eta || 'TBC'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="check-list">
+          {assignableContainments.map((box) => (
+            <label className="check-row" key={box.number}>
+              <input type="checkbox" checked={selected.includes(box.number)} onChange={() => toggle(box.number)} />
+              <span>{box.number} - {box.client} - {box.destination}</span>
+            </label>
+          ))}
+          {!assignableContainments.length && <p className="muted-copy">No locked containments are ready for assignment.</p>}
+        </div>
+      </div>
+      <button
+        className="primary-action"
+        disabled={!containerNumber || !selected.length}
+        onClick={() => {
+          setMessage(onAssignContainer(selected, containerNumber));
+          setSelected([]);
+        }}
+      >
+        <Container size={18} />
+        Assign selected
+      </button>
+    </Panel>
+  );
+}
+
+function UsersPage({ users, onAddUser, onResetUserPassword, setUsers }) {
+  const [form, setForm] = useState({ name: '', email: '', role: 'Client', code: '', password: '' });
+  const [message, setMessage] = useState('');
   return (
     <div className="section-stack">
       <Panel title="Create User">
+        <AuthNotice message={message} />
         <div className="form-grid">
           <Input label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
           <Input label="Email" value={form.email} onChange={(email) => setForm({ ...form, email })} />
@@ -1116,8 +1427,17 @@ function UsersPage({ users, onAddUser, setUsers }) {
             </select>
           </label>
           <Input label="Client code" value={form.code} onChange={(code) => setForm({ ...form, code })} />
+          <Input label="Temporary password" type="password" value={form.password} onChange={(password) => setForm({ ...form, password })} />
         </div>
-        <button className="primary-action" disabled={!form.name || !form.email || !form.code} onClick={() => onAddUser(form)}>
+        <button
+          className="primary-action"
+          disabled={!form.name || !form.email || !form.code || form.password.length < 8}
+          onClick={() => {
+            onAddUser(form);
+            setMessage('User created.');
+            setForm({ name: '', email: '', role: 'Client', code: '', password: '' });
+          }}
+        >
           <UserPlus size={18} />
           Add user
         </button>
@@ -1139,9 +1459,33 @@ function UsersPage({ users, onAddUser, setUsers }) {
             >
               {user.active ? 'Deactivate' : 'Activate'}
             </button>
+            <AdminPasswordReset user={user} onResetUserPassword={onResetUserPassword} />
           </div>
         ))}
       </Panel>
+    </div>
+  );
+}
+
+function AdminPasswordReset({ user, onResetUserPassword }) {
+  const [form, setForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [message, setMessage] = useState('');
+  return (
+    <div className="password-reset-box">
+      <Input label="New password" type="password" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
+      <Input label="Confirm new password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
+      <button
+        className="secondary-action"
+        disabled={!form.newPassword || !form.confirmPassword}
+        onClick={() => {
+          setMessage(onResetUserPassword(user.id, form));
+          setForm({ newPassword: '', confirmPassword: '' });
+        }}
+      >
+        <KeyRound size={17} />
+        Reset password
+      </button>
+      <AuthNotice message={message} />
     </div>
   );
 }
@@ -1176,16 +1520,73 @@ function Customs({ shipments, onUpdateShipmentCustoms }) {
   );
 }
 
-function Containers({ containments, shippingContainers }) {
+function Containers({ user, containments, shippingContainers, onAddShippingContainer }) {
+  const [form, setForm] = useState({
+    number: '',
+    sealNumber: '',
+    carrier: '',
+    vessel: '',
+    originPort: '',
+    destinationPort: '',
+    departureDate: '',
+    eta: '',
+    status: 'Created',
+    notes: '',
+  });
+  const [message, setMessage] = useState('');
+  const canManage = ['Admin', 'Staff', 'Warehouse staff'].includes(user.role);
   return (
-    <Panel title="Shipping Containers">
-      {shippingContainers.map((container) => (
-        <RecordRow key={container.id} title={container.id} meta={`${container.route} - ${container.containments} containments - ETA ${container.eta}`} status={container.status} />
-      ))}
-      {containments.filter((box) => box.container !== 'Pending').map((box) => (
-        <RecordRow key={box.number} title={box.container} meta={`${box.number} - ${box.destination}`} status={box.status} />
-      ))}
-    </Panel>
+    <div className="section-stack">
+      {canManage && (
+        <Panel title="Add New Container">
+          <AuthNotice message={message} />
+          <div className="form-grid">
+            <Input label="Container number" value={form.number} onChange={(number) => setForm({ ...form, number })} />
+            <Input label="Seal number" value={form.sealNumber} onChange={(sealNumber) => setForm({ ...form, sealNumber })} />
+            <Input label="Shipping line / carrier" value={form.carrier} onChange={(carrier) => setForm({ ...form, carrier })} />
+            <Input label="Vessel name or truck reference" value={form.vessel} onChange={(vessel) => setForm({ ...form, vessel })} />
+            <Input label="Origin port" value={form.originPort} onChange={(originPort) => setForm({ ...form, originPort })} />
+            <Input label="Destination port" value={form.destinationPort} onChange={(destinationPort) => setForm({ ...form, destinationPort })} />
+            <Input label="Departure date" type="date" value={form.departureDate} onChange={(departureDate) => setForm({ ...form, departureDate })} />
+            <Input label="ETA" type="date" value={form.eta} onChange={(eta) => setForm({ ...form, eta })} />
+            <label>
+              Status
+              <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+                {['Created', 'Loading', 'Loaded', 'In transit', 'Closed', 'Cleared', 'Unloaded'].map((status) => <option key={status}>{status}</option>)}
+              </select>
+            </label>
+            <label>
+              Notes
+              <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+            </label>
+          </div>
+          <button
+            className="primary-action"
+            disabled={!form.number}
+            onClick={() => {
+              setMessage(onAddShippingContainer(form));
+              setForm({ number: '', sealNumber: '', carrier: '', vessel: '', originPort: '', destinationPort: '', departureDate: '', eta: '', status: 'Created', notes: '' });
+            }}
+          >
+            <Plus size={18} />
+            Add container
+          </button>
+        </Panel>
+      )}
+      <Panel title="Shipping Containers">
+        {shippingContainers.map((container) => (
+          <RecordRow
+            key={container.id}
+            title={container.number}
+            meta={`${container.originPort} to ${container.destinationPort} - ${container.carrier || 'Carrier TBC'} - ${container.containments} containments - ETA ${container.eta || 'TBC'}`}
+            status={container.status}
+          />
+        ))}
+        {containments.filter((box) => box.container !== 'Pending').map((box) => (
+          <RecordRow key={box.number} title={box.container} meta={`${box.number} - ${box.client} - ${box.destination}`} status={box.status} />
+        ))}
+      </Panel>
+    </div>
   );
 }
 
@@ -1206,6 +1607,96 @@ function Payments({ payments }) {
         <RecordRow key={payment.id} title={`${payment.customer} - ${payment.amount}`} meta={payment.shipment} status={payment.status} />
       ))}
     </Panel>
+  );
+}
+
+function ProfilePage({ user, onChangeOwnPassword }) {
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [message, setMessage] = useState('');
+  return (
+    <div className="section-stack">
+      <Panel title="Profile">
+        <RecordRow title={user.name} meta={`${user.email} - ${user.code}`} status={user.role} />
+      </Panel>
+      <Panel title="Change Password">
+        <AuthNotice message={message} />
+        <div className="form-grid">
+          <Input label="Current password" type="password" value={form.currentPassword} onChange={(currentPassword) => setForm({ ...form, currentPassword })} />
+          <Input label="New password" type="password" value={form.newPassword} onChange={(newPassword) => setForm({ ...form, newPassword })} />
+          <Input label="Confirm new password" type="password" value={form.confirmPassword} onChange={(confirmPassword) => setForm({ ...form, confirmPassword })} />
+        </div>
+        <button
+          className="primary-action"
+          disabled={!form.currentPassword || !form.newPassword || !form.confirmPassword}
+          onClick={async () => {
+            setMessage(await onChangeOwnPassword(form));
+            setForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+          }}
+        >
+          <KeyRound size={18} />
+          Update password
+        </button>
+      </Panel>
+    </div>
+  );
+}
+
+function SettingsPage({ containmentSizes, onSaveContainmentSize, onToggleContainmentSize, onSetDefaultContainmentSize }) {
+  const emptyForm = { id: '', name: '', width: '', height: '', length: '', unit: 'cm', maxWeight: '', active: true, default: false, notes: '' };
+  const [form, setForm] = useState(emptyForm);
+  const [message, setMessage] = useState('');
+  return (
+    <div className="section-stack">
+      <Panel title="Containment Sizes / Box Types">
+        <AuthNotice message={message} />
+        <div className="form-grid">
+          <Input label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+          <Input label="Width" type="number" value={form.width} onChange={(width) => setForm({ ...form, width })} />
+          <Input label="Height" type="number" value={form.height} onChange={(height) => setForm({ ...form, height })} />
+          <Input label="Length" type="number" value={form.length} onChange={(length) => setForm({ ...form, length })} />
+          <Input label="Unit" value={form.unit} onChange={(unit) => setForm({ ...form, unit })} />
+          <Input label="Max weight" value={form.maxWeight} onChange={(maxWeight) => setForm({ ...form, maxWeight })} />
+          <label className="check-row">
+            <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
+            <span>Active</span>
+          </label>
+          <label className="check-row">
+            <input type="checkbox" checked={form.default} onChange={(event) => setForm({ ...form, default: event.target.checked })} />
+            <span>Set as default</span>
+          </label>
+          <label className="span-2">
+            Notes
+            <textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+          </label>
+        </div>
+        <button
+          className="primary-action"
+          onClick={() => {
+            setMessage(onSaveContainmentSize(form));
+            setForm(emptyForm);
+          }}
+        >
+          <Plus size={18} />
+          Save box type
+        </button>
+      </Panel>
+      <Panel title="Box Type Management">
+        {containmentSizes.map((size) => (
+          <div className="user-row" key={size.id}>
+            <RecordRow title={size.name} meta={`${size.width} x ${size.height} x ${size.length} ${size.unit}${size.maxWeight ? ` - max ${size.maxWeight}` : ''}`} status={size.active ? (size.default ? 'Default' : 'Active') : 'Inactive'} />
+            <button className="secondary-action" onClick={() => setForm(size)}>
+              Edit
+            </button>
+            <button className="secondary-action" onClick={() => onToggleContainmentSize(size.id)}>
+              {size.active ? 'Deactivate' : 'Activate'}
+            </button>
+            <button className="secondary-action" disabled={size.default} onClick={() => onSetDefaultContainmentSize(size.id)}>
+              Set default
+            </button>
+          </div>
+        ))}
+      </Panel>
+    </div>
   );
 }
 
@@ -1267,12 +1758,17 @@ function sectionTitle(id) {
   return navItems.find((item) => item.id === id)?.label || 'Dashboard';
 }
 
-function scopeRecords(user, shipments, parcels, containments) {
-  if (!user || user.role !== 'Client') return { shipments, parcels, containments };
+function scopeRecords(user, shipments, parcels, containments, documents, payments, trackingEvents) {
+  if (!user || user.role !== 'Client') return { shipments, parcels, containments, documents, payments, trackingEvents };
+  const clientShipments = shipments.filter((shipment) => shipment.customer === user.name || shipment.clientCode === user.code);
+  const shipmentIds = clientShipments.map((shipment) => shipment.id);
   return {
-    shipments: shipments.filter((shipment) => shipment.customer === user.name || shipment.clientCode === user.code),
+    shipments: clientShipments,
     parcels: parcels.filter((parcel) => parcel.client === user.name),
     containments: containments.filter((box) => box.client === user.name || box.code === user.code),
+    documents: documents.filter((document) => document.owner === user.name || shipmentIds.includes(document.shipment)),
+    payments: payments.filter((payment) => payment.customer === user.name || shipmentIds.includes(payment.shipment)),
+    trackingEvents: trackingEvents.filter((event) => shipmentIds.includes(event.shipment)),
   };
 }
 
@@ -1325,6 +1821,19 @@ function createClientCode(name) {
       .slice(0, 4)
       .toUpperCase() || 'NEW'
   );
+}
+
+function validatePasswordChange(newPassword, confirmPassword) {
+  if (!newPassword) return 'New password cannot be empty.';
+  if (newPassword.length < 8) return 'New password must be at least 8 characters.';
+  if (newPassword !== confirmPassword) return 'Confirm password must match.';
+  return '';
+}
+
+function validateContainmentSize(form) {
+  if (!form.name?.trim()) return 'Box type name is required.';
+  if (!Number(form.width) || !Number(form.height) || !Number(form.length)) return 'Width, height, and length are required.';
+  return '';
 }
 
 function toAuthMessage(error) {
